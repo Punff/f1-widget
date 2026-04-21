@@ -15,5 +15,7 @@ void encoder_loop();
 // Callbacks — implement these in your main logic
 void onEncoderChanged(int value);
 void onEncoderPressed();
+void onEncoderLongPress();
+void onEncoderDoublePress();
 
 #endif

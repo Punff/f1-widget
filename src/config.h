@@ -15,6 +15,11 @@
 #define ENCODER_DT 21  // DT (B)
 #define ENCODER_SW 35  // Button (now with VCC)
 
+// Input timing
+#define LONG_PRESS_MS 600
+#define DOUBLE_PRESS_WINDOW_MS 200
+#define DEBOUNCE_MS 100
+
 // WiFi
 #define WIFI_AP_NAME "F1Widget"
 
