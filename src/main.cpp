@@ -1,50 +1,119 @@
 #include <Arduino.h>
-#include "input/EncoderInput.h"
+#include <LittleFS.h>
 #include "LGFX_Config.h"
+#include "data/DataCache.h"
+#include "api/APIClient.h"
+#include "wifi/WiFiManager.h"
+#include "input/EncoderInput.h"
+#include "display/DisplayManager.h"
+#include "display/views/MenuView.h"
+#include "display/views/DriverStandingsView.h"
+#include "display/views/ConstructorStandingsView.h"
+#include "display/views/NewsView.h"
 
 LGFX tft;
+DisplayManager *dm = nullptr;
+APIClient *api = nullptr;
 
-int encoderValue = 0;
-
-void onEncoderChanged(int value)
+void onEncoderTurnRight()
 {
-    encoderValue = value;
-    Serial.print("Encoder: ");
-    Serial.println(encoderValue);
+    if (dm)
+        dm->onTurnRight();
+}
+
+void onEncoderTurnLeft()
+{
+    if (dm)
+        dm->onTurnLeft();
 }
 
 void onEncoderPressed()
 {
-    Serial.println("Single press");
+    if (dm)
+        dm->onPress();
 }
 
 void onEncoderLongPress()
 {
-    Serial.println("Long press");
+    if (dm)
+        dm->onLongPress();
 }
 
 void onEncoderDoublePress()
 {
-    Serial.println("Double press");
+    if (dm)
+        dm->onDoublePress();
 }
+
+// Views
+MenuView *menuView = nullptr;
+DriverStandingsView *driverView = nullptr;
+ConstructorStandingsView *constructorView = nullptr;
+NewsView *newsView = nullptr;
 
 void setup()
 {
     Serial.begin(115200);
+    delay(1000);
 
-    pinMode(27, OUTPUT);
-    digitalWrite(27, HIGH);
+    if (!LittleFS.begin(true))
+        Serial.println("FS Mount Failed");
+
+    cache = new DataCache();
+    cache->loadDrivers();
+    cache->loadConstructors();
 
     tft.init();
     tft.setRotation(1);
-    tft.fillScreen(TFT_GREEN);
-    tft.drawString("LGFX OK!", 80, 100);
+    pinMode(27, OUTPUT);
+    digitalWrite(27, HIGH); // Backlight
+
+    wifi_init();
+
+    dm = new DisplayManager(&tft);
+    api = new APIClient(cache);
+
+    menuView = new MenuView(&tft, dm);
+    driverView = new DriverStandingsView(&tft, dm);
+    constructorView = new ConstructorStandingsView(&tft, dm);
+    newsView = new NewsView(&tft, dm);
+
+    dm->registerView(0, driverView);
+    dm->registerView(1, constructorView);
+    dm->registerView(2, newsView);
+    dm->init(menuView);
 
     encoder_init(-100, 100, 0);
+    Serial.println("[System] Ready. Sync will start in 5s...");
 }
 
 void loop()
 {
     encoder_loop();
-    delay(5);
+    if (dm)
+        dm->loop();
+
+    // ── Delayed API Sync ──────────────────────────────────────────────────
+    // Give the UI 5 seconds to stabilize before hitting the WiFi/RAM hard
+    static bool firstSyncDone = false;
+    if (!firstSyncDone && millis() > 5000)
+    {
+        if (WiFi.status() == WL_CONNECTED)
+        {
+            Serial.printf("Pre-Sync Free RAM: %u\n", ESP.getFreeHeap());
+            api->syncPersistentData();
+            Serial.printf("Post-Sync Free RAM: %u\n", ESP.getFreeHeap());
+        }
+        firstSyncDone = true;
+    }
+
+    // Monitor RAM every 10 seconds to detect leaks
+    static unsigned long lastMem = 0;
+    if (millis() - lastMem > 10000)
+    {
+        Serial.printf("Current Free Heap: %u\n", ESP.getFreeHeap());
+        lastMem = millis();
+    }
+
+    yield();
 }

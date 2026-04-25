@@ -7,13 +7,17 @@ AiEsp32RotaryEncoder encoder(
     -1,
     ENCODER_STEPS);
 
+enum BtnState
+{
+    BTN_IDLE,
+    BTN_PRESSED,
+    BTN_WAIT_DOUBLE
+};
+
+static BtnState buttonState = BTN_IDLE;
 static unsigned long buttonDownTime = 0;
-static unsigned long buttonReleaseTime = 0;
-static unsigned long lastButtonStateChange = 0;
-static bool buttonHandled = false;
-static bool waitingDoublePress = false;
-static bool doublePressHandled = false;
-static bool lastButtonState = false;
+static unsigned long buttonUpTime = 0;
+static int lastEncValue = 0;
 
 void IRAM_ATTR readEncoderISR()
 {
@@ -27,69 +31,73 @@ void encoder_init(int minVal, int maxVal, int startVal)
     encoder.setBoundaries(minVal, maxVal, false);
     encoder.setEncoderValue(startVal);
     encoder.setAcceleration(0);
+    lastEncValue = startVal;
 }
 
 void encoder_loop()
 {
+    // ── Rotation ────────────────────────────────────────────
     if (encoder.encoderChanged())
     {
-        onEncoderChanged(encoder.readEncoder());
+        int val = encoder.readEncoder();
+        if (val > lastEncValue)
+        {
+            onEncoderTurnRight();
+        }
+        else if (val < lastEncValue)
+        {
+            onEncoderTurnLeft();
+        }
+        lastEncValue = val;
     }
 
+    // ── Button state machine ─────────────────────────────────
     bool buttonDown = encoder.isEncoderButtonDown();
     unsigned long now = millis();
 
-    bool stableButtonDown = buttonDown;
-    if (buttonDown != lastButtonState)
+    switch (buttonState)
     {
-        if ((now - lastButtonStateChange) < DEBOUNCE_MS)
+    case BTN_IDLE:
+        if (buttonDown)
         {
-            stableButtonDown = lastButtonState;
+            buttonDownTime = now;
+            buttonState = BTN_PRESSED;
         }
-        else
-        {
-            lastButtonStateChange = now;
-            lastButtonState = buttonDown;
-            stableButtonDown = buttonDown;
-        }
-    }
+        break;
 
-    if (stableButtonDown && !buttonHandled)
-    {
-        if (waitingDoublePress)
+    case BTN_PRESSED:
+        if (!buttonDown)
         {
-            onEncoderDoublePress();
-            waitingDoublePress = false;
-            doublePressHandled = true;
+            unsigned long held = now - buttonDownTime;
+            buttonUpTime = now;
+            if (held >= LONG_PRESS_MS)
+            {
+                onEncoderLongPress();
+                buttonState = BTN_IDLE;
+            }
+            else
+            {
+                buttonState = BTN_WAIT_DOUBLE;
+            }
         }
-        buttonDownTime = now;
-        buttonReleaseTime = 0;
-        buttonHandled = true;
-    }
-    else if (!stableButtonDown && buttonHandled)
-    {
-        unsigned long duration = now - buttonDownTime;
-        buttonHandled = false;
-
-        if (duration >= LONG_PRESS_MS)
+        else if ((now - buttonDownTime) >= LONG_PRESS_MS)
         {
             onEncoderLongPress();
+            buttonState = BTN_IDLE;
         }
-        else if (!doublePressHandled)
-        {
-            waitingDoublePress = true;
-            buttonReleaseTime = now;
-        }
-        else
-        {
-            doublePressHandled = false;
-        }
-    }
+        break;
 
-    if (waitingDoublePress && buttonReleaseTime > 0 && (now - buttonReleaseTime) >= DOUBLE_PRESS_WINDOW_MS)
-    {
-        onEncoderPressed();
-        waitingDoublePress = false;
-        buttonReleaseTime = 0;
+    case BTN_WAIT_DOUBLE:
+        if (buttonDown)
+        {
+            onEncoderDoublePress();
+            buttonState = BTN_IDLE;
+        }
+        else if ((now - buttonUpTime) >= DOUBLE_PRESS_WINDOW_MS)
+        {
+            onEncoderPressed();
+            buttonState = BTN_IDLE;
+        }
+        break;
     }
 }

@@ -31,7 +31,7 @@ public:
             auto cfg = _panel.config();
 
             cfg.pin_cs = 15;
-            cfg.pin_rst = 33;
+            cfg.pin_rst = 4;
 
             cfg.panel_width = 320;
             cfg.panel_height = 480;

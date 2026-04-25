@@ -51,110 +51,114 @@ An ESP32-based Formula 1 data display widget. Fetches post-session data from the
 - IDE: VSCode + PlatformIO extension
 
 ---
+Architecture Overview
+Encoder-centric design: a persistent vertical strip on the right edge (~40px wide) renders the virtual encoder widget at all times. Everything else renders in the remaining 440×320 space. No view ever draws into the encoder strip.
 
-## File Structure
+Screen Layout
+┌─────────────────────────────────────────┬──────┐
+│                                         │  ↑   │
+│           VIEW CONTENT AREA             │  █   │
+│              440 × 320                  │  █   │
+│                                         │  ↓   │
+└─────────────────────────────────────────┴──────┘
+                                          40px strip
+The encoder widget reacts visually to every input — rotation animates the dial, press flashes it, long press shows a "home" indicator.
 
-```
-.
-├── include/
-├── lib/
-├── platformio.ini
-├── PROJECT_LOG.md
-└── src/
-    ├── config.h
-    ├── main.cpp
-    ├── api/
-    │   ├── APIClient.h
-    │   └── APIClient.cpp
-    ├── data/
-    │   ├── DataCache.h
-    │   └── DataCache.cpp
-    ├── display/
-    │   ├── assets/          ← pre-converted driver headshot bitmaps (planned)
-    │   ├── DisplayManager.h
-    │   └── DisplayManager.cpp
-    └── input/
-        ├── EncoderInput.h
-        └── EncoderInput.cpp
-```
+File Structure
+src/
+├── config.h
+├── main.cpp
+├── input/
+│   ├── EncoderInput.h
+│   └── EncoderInput.cpp
+├── wifi/
+│   ├── WiFiManager.h
+│   └── WiFiManager.cpp
+├── display/
+│   ├── DisplayManager.h
+│   ├── DisplayManager.cpp
+│   ├── EncoderWidget.h
+│   ├── EncoderWidget.cpp
+│   ├── IView.h
+│   └── views/
+│       ├── MenuView.h
+│       ├── MenuView.cpp
+│       ├── DriverStandingsView.h
+│       ├── DriverStandingsView.cpp
+│       ├── ConstructorStandingsView.h
+│       ├── ConstructorStandingsView.cpp
+│       └── NewsView.h
+│           NewsView.cpp
+├── api/
+│   ├── APIClient.h
+│   └── APIClient.cpp
+└── data/
+    ├── DataCache.h
+    └── DataCache.cpp
 
----
+Storage Partitioning Plan
+LittleFS partition (default 1MB on esp32dev, increase to 1.5MB in partitions.csv if headshots are added later):
+/drivers.json        — driver standings array, written after every fetch
+/constructors.json   — constructor standings array
+/news.json           — articles array
+/last_update.json    — timestamps per data type
+/settings.json       — user preferences (brightness, update interval etc) — future
+What gets saved and when:
+DataSaved whenLoaded whenDriver standingsAfter successful API fetchBoot, before first renderConstructor standingsAfter successful API fetchBoot, before first renderNews articlesAfter successful RSS fetchBoot, before first renderLast update timestampsAfter each successful fetchBoot, to decide if fetch neededSettingsWhen user changes a settingBootWi-Fi credentialsBy WiFiManager automaticallyBoot
+Update logic: On boot, load from flash and render immediately (no waiting for API). Then check timestamps — if stale (>24h default, configurable), trigger fetchAll() in background. On success, update flash and re-render affected views.
 
-## Module Status
+config.h additions needed
+cpp// Storage
+#define DRIVERS_FILE       "/drivers.json"
+#define CONSTRUCTORS_FILE  "/constructors.json"
+#define NEWS_FILE          "/news.json"
+#define LAST_UPDATE_FILE   "/last_update.json"
+#define SETTINGS_FILE      "/settings.json"
 
-| Module | File(s) | Status | Notes |
-|---|---|---|---|
-| Config | `config.h` | ✅ Done | All pin definitions, constants set |
-| Encoder input | `input/EncoderInput.*` | ✅ Done | Wired, ISR set up, callbacks working |
-| Display manager | `display/DisplayManager.*` | 🟡 Placeholder | Init + basic text/number helpers only, no views |
-| Data cache | `data/DataCache.*` | 🟡 Placeholder | Structs and manager defined, no data yet |
-| API client | `api/APIClient.*` | 🟡 Placeholder | HTTP scaffolding done, fetch methods are stubs |
-| Main | `main.cpp` | 🟡 In progress | Currently encoder test only |
-| Display assets | `display/assets/` | ⬜ Not started | Driver headshots, pre-converted to RGB565 |
-| WiFiManager setup | — | ⬜ Not started | Captive portal AP on first boot |
+// API
+#define API_UPDATE_INTERVAL_MS  86400000UL   // 24h default
+#define API_SEASON              "2024"        // update each season
 
----
+// Display
+#define SCREEN_W         480
+#define SCREEN_H         320
+#define CONTENT_W        440   // screen minus encoder strip
+#define ENCODER_STRIP_X  440
+#define ENCODER_STRIP_W  40
 
-## Key Design Decisions
+What's Left — Full Task Order
+✅ Encoder input (long press, double press, single press)
+✅ WiFiManager (captive portal, credentials to flash)
 
-- **Post-session data only** — no live telemetry. OpenF1 REST API polled at a 10-minute interval (`API_UPDATE_INTERVAL = 600000`).
-- **No LVGL** — rendering done directly with TFT_eSPI primitives for simplicity and memory.
-- **Static driver assets** — headshots pre-converted offline to RGB565 bitmaps and stored in `display/assets/`, not fetched at runtime.
-- **WiFiManager** — on first boot, device opens AP `"F1Widget"` for captive portal Wi-Fi config. Credentials persisted to flash.
-- **Encoder acceleration disabled** — `setAcceleration(0)` for predictable 1-detent = 1-step navigation.
-- **Encoder VCC pin = -1** — library constructor receives `-1` for VCC; physical VCC is hardwired to 3.3V.
+── DISPLAY ──────────────────────────────────────────
+[ ] EncoderWidget — draw strip, idle + react states
+[ ] DisplayManager — init, setView, input delegation
+[ ] MenuView — carousel render + transition animation
+[ ] Wire encoder callbacks in main.cpp → DisplayManager
 
----
+── DATA ─────────────────────────────────────────────
+[ ] DataCache — implement load/save/stale per data type
+[ ] APIClient — fetchDriverStandings(), parse, save to cache
+[ ] APIClient — fetchConstructorStandings(), parse, save
+[ ] APIClient — fetchNews() RSS parse, save
 
-## Task Plan
+── VIEWS ────────────────────────────────────────────
+[ ] DriverStandingsView — render from cache, scroll
+[ ] ConstructorStandingsView — render from cache, scroll
+[ ] NewsView — render from cache, page through articles
 
-### ✅ Done
-- [x] Hardware selection and pin mapping
-- [x] `config.h` — all defines
-- [x] `EncoderInput.h` / `.cpp` — ISR, init, loop, callbacks
-- [x] `DisplayManager` — init, backlight, basic text/number draw
-- [x] `DataCache` — struct definitions, manager class with getters/setters
-- [x] `APIClient` — HTTP scaffolding, `makeRequest()` helper
+── INTEGRATION ──────────────────────────────────────
+[ ] Boot sequence — load cache → connect WiFi → fetch if stale → render
+[ ] Stale data indicator in views (show last update time)
+[ ] Error screen — no WiFi / fetch failed
 
-### 🔧 In Progress
-- [ ] `main.cpp` — encoder test running, integration not started
-
-### ⬜ Up Next
-
-#### WiFi
-- [ ] Integrate WiFiManager into `setup()`
-- [ ] Block until connected, show status on display
-
-#### API
-- [ ] Implement `fetchStandings()` — map OpenF1 driver standings endpoint to `DriverStanding[]`
-- [ ] Implement `fetchResults()` — map last session results to `RaceResult[]`
-- [ ] Implement `fetchSchedule()` — map upcoming sessions to `SessionSchedule[]`
-- [ ] Wire `fetchAll()` into main loop with `API_UPDATE_INTERVAL` timer
-
-#### Display — Views
-- [ ] Design view system (enum-based page switching via encoder)
-- [ ] Standings view — scrollable driver list, position + name + points
-- [ ] Results view — last race podium / full grid
-- [ ] Schedule view — next sessions with date + location
-- [ ] Loading / splash screen
-
-#### Display — Assets
-- [ ] Select and crop driver headshots
-- [ ] Convert to RGB565 bitmaps (Python script or image2cpp)
-- [ ] Store in `display/assets/` as `.h` header arrays
-- [ ] Integrate into standings/results views
-
-#### Integration
-- [ ] Connect encoder navigation to view switching
-- [ ] Connect encoder press to sub-view or detail toggle
-- [ ] End-to-end test: WiFi → fetch → display → navigate
-
-#### Polish
-- [ ] Stale data indicator (show last update time)
-- [ ] Error screen for failed API fetch
-- [ ] Brightness control (optional, via `TFT_BCKL` PWM)
-
----
+── POLISH ───────────────────────────────────────────
+[ ] Splash screen on boot
+[ ] Settings view (brightness, update interval, force refresh)
+[ ] Driver headshot assets — convert RGB565, integrate into standings
+[ ] Tracks view
+[ ] Calendar view
+[ ] Weekend view (next race countdown + session schedule)
 
 ## API Notes (OpenF1)
 

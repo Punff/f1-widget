@@ -12,10 +12,11 @@ extern AiEsp32RotaryEncoder encoder;
 void encoder_init(int minVal, int maxVal, int startVal);
 void encoder_loop();
 
-// Callbacks — implement these in your main logic
-void onEncoderChanged(int value);
-void onEncoderPressed();
-void onEncoderLongPress();
-void onEncoderDoublePress();
+// Callbacks — implement in main.cpp
+extern void onEncoderTurnRight();
+extern void onEncoderTurnLeft();
+extern void onEncoderPressed();
+extern void onEncoderLongPress();
+extern void onEncoderDoublePress();
 
 #endif
