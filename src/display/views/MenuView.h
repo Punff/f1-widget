@@ -9,10 +9,11 @@ enum class MenuItem
     DRIVER_STANDINGS = 0,
     CONSTRUCTOR_STANDINGS,
     NEWS,
-    CALENDAR,
-    TRACKS,
     DRIVERS,
-    COUNT
+    CIRCUITS,
+    CALENDAR,
+    SETTINGS,
+    COUNT // This will now automatically be 7
 };
 
 class MenuView : public IView
@@ -29,7 +30,7 @@ public:
     void onDoublePress() override;
     void tick() override;
 
-    static constexpr int TEXT_RADIUS = 150;
+    static constexpr int TEXT_RADIUS = 110;
     static constexpr int SAFE_W = 415;
 
 private:
@@ -47,7 +48,6 @@ private:
     {
         int x, y, w, h;
         bool valid;
-        // Constructor to handle assignments safely
         ItemRect() : x(0), y(0), w(0), h(0), valid(false) {}
         void set(int nx, int ny, int nw, int nh)
         {

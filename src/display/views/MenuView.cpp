@@ -7,7 +7,7 @@
 #define DEG2RAD(a) ((a) * M_PI / 180.0f)
 #endif
 
-// Official F1 Pallet
+// Official F1 Palette Constants
 static constexpr uint32_t COL_NEAR = 0xFFFFFF; // Active Text
 static constexpr uint32_t COL_FAR = 0x4208;    // Dimmed Text (Graphite)
 static constexpr uint32_t COL_LOCKIN = 0xF800; // Ferrari Red
@@ -67,6 +67,8 @@ void MenuView::tick()
     }
 }
 
+// ── Helper Methods (Fixes Linker Errors) ──────────────────────────────────
+
 void MenuView::_drawLockIn(int index)
 {
     float target = _targetAngle(index);
@@ -79,33 +81,27 @@ void MenuView::_drawLockIn(int index)
     const char *label = _label(index);
     int tw = _tft->textWidth(label);
 
-    // Exact underline math:
-    // Since Datum is middle_right, 'tx' is the END of the word.
     int x_start = tx - tw;
     int x_end = tx;
     int uy = ty + 14;
 
-    // 1. THE RED UNDERLINE (Total word coverage)
-    _tft->fillRect(x_start, uy, tw, 3, TFT_RED);
+    // 1. THE RED UNDERLINE
+    _tft->fillRect(x_start, uy, tw, 3, COL_LOCKIN);
 
     // 2. THE RAIL TRACE
     int anchorX = EncoderWidget::TRI_TIP_X;
     int anchorY = EncoderWidget::CY;
 
-    // Small extension out from the end of the underline
-    _tft->drawFastHLine(x_end + 2, uy + 1, 10, 0x4208);
-
-    // Vertical Drop
+    _tft->drawFastHLine(x_end + 2, uy + 1, 10, COL_FAR);
     int dropX = x_end + 12;
-    int dropStart = min(uy + 1, anchorY);
+    int dropStart = (uy + 1 < anchorY) ? uy + 1 : anchorY;
     int dropLen = abs((uy + 1) - anchorY);
-    _tft->drawFastVLine(dropX, dropStart, dropLen, 0x4208);
+    _tft->drawFastVLine(dropX, dropStart, dropLen, COL_FAR);
+    _tft->drawFastHLine(dropX, anchorY, anchorX - dropX, COL_FAR);
 
-    // Horizontal to Widget
-    _tft->drawFastHLine(dropX, anchorY, anchorX - dropX, 0x4208);
-
-    _prevLockIn.set(x_start, min(uy, anchorY), (anchorX - x_start) + 2, dropLen + 6);
+    _prevLockIn.set(x_start, (uy < anchorY ? uy : anchorY), (anchorX - x_start) + 2, dropLen + 6);
 }
+
 void MenuView::_erasePrev()
 {
     for (int i = 0; i < ITEM_COUNT; i++)
@@ -141,16 +137,7 @@ void MenuView::_drawItems(float faceAngle)
 
         _tft->setTextColor(col, 0x000000);
         _tft->setTextDatum(textdatum_t::middle_right);
-
-        // Use Built-in font but vary size for hierarchy
-        if (i == _activeIndex)
-        {
-            _tft->setTextSize(2); // Large & Bold looking
-        }
-        else
-        {
-            _tft->setTextSize(1); // Small & Clean
-        }
+        _tft->setTextSize((i == _activeIndex) ? 2 : 1);
 
         _tft->drawString(_label(i), x, y);
 
@@ -175,7 +162,6 @@ uint32_t MenuView::_lerpCol(uint32_t a, uint32_t b, float t) const
     if (t >= 1.0f)
         return b;
 
-    // Extract RGB565 components manually for reliability
     uint8_t r1 = (a >> 11) & 0x1F, g1 = (a >> 5) & 0x3F, b1 = a & 0x1F;
     uint8_t r2 = (b >> 11) & 0x1F, g2 = (b >> 5) & 0x3F, b2 = b & 0x1F;
 
@@ -188,7 +174,14 @@ uint32_t MenuView::_lerpCol(uint32_t a, uint32_t b, float t) const
 
 const char *MenuView::_label(int index) const
 {
-    static const char *labels[] = {"STANDINGS", "TEAMS", "LATEST NEWS", "SCHEDULE", "CIRCUITS", "PILOTS"};
+    static const char *labels[] = {
+        "DRIVER STANDINGS",
+        "CONSTRUCTOR STANDINGS",
+        "NEWS",
+        "DRIVERS",
+        "CIRCUITS",
+        "CALENDAR",
+        "SETTINGS"};
     return labels[index];
 }
 

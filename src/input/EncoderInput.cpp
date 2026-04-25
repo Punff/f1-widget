@@ -42,11 +42,11 @@ void encoder_loop()
         int val = encoder.readEncoder();
         if (val > lastEncValue)
         {
-            onEncoderTurnRight();
+            onEncoderTurnLeft();
         }
         else if (val < lastEncValue)
         {
-            onEncoderTurnLeft();
+            onEncoderTurnRight();
         }
         lastEncValue = val;
     }

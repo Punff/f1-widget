@@ -1,8 +1,8 @@
 #include "APIClient.h"
+#include <ArduinoJson.h>
 
-// Define static constants
-const char APIClient::JOLPI_DRIVERS[] = "https://api.jolpi.ca/ergast/f1/2024/driverstandings/";
-const char APIClient::JOLPI_CONSTRUCTORS[] = "https://api.jolpi.ca/ergast/f1/2024/constructorstandings/";
+const char APIClient::JOLPI_DRIVERS[] = "https://api.jolpi.ca/ergast/f1/current/driverstandings/";
+const char APIClient::JOLPI_CONSTRUCTORS[] = "https://api.jolpi.ca/ergast/f1/current/constructorstandings/";
 const char APIClient::OPENF1_WEATHER[] = "https://api.openf1.org/v1/weather?session_key=latest";
 
 APIClient::APIClient(DataCache *cache) : _cache(cache) {}
@@ -20,14 +20,14 @@ bool APIClient::fetchDriverStandings()
         return false;
 
     HTTPClient http;
+    http.useHTTP10(true); // Prevent memory-related freezes with simpler protocol
     http.begin(JOLPI_DRIVERS);
-    http.setTimeout(TIMEOUT_MS);
-    int httpCode = http.GET();
+    http.setTimeout(10000);
 
+    int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK)
     {
         JsonDocument doc;
-        // STREAMING: No getString() call here. We parse directly from the stream.
         DeserializationError error = deserializeJson(doc, http.getStream());
 
         if (!error)
@@ -40,23 +40,32 @@ bool APIClient::fetchDriverStandings()
                 {
                     if (_cache->driverCount >= DataCache::MAX_DRIVERS)
                         break;
+
                     DriverStanding &d = _cache->drivers[_cache->driverCount];
-                    d.position = s["position"] | 0;
-                    d.points = s["points"] | 0;
+
+                    // CLEAR STRUCT to prevent random junk
+                    memset(&d, 0, sizeof(DriverStanding));
+
+                    // Convert Strings to Ints safely
+                    d.position = atoi(s["position"] | "0");
+                    d.points = atoi(s["points"] | "0");
+
                     JsonObject driver = s["Driver"];
-                    strlcpy(d.lastName, driver["familyName"] | "", sizeof(d.lastName));
+                    strlcpy(d.lastName, driver["familyName"] | "Unknown", sizeof(d.lastName));
                     strlcpy(d.code, driver["code"] | "???", sizeof(d.code));
+
                     _cache->driverCount++;
                 }
                 _cache->driversLastUpdated = millis();
                 _cache->saveDrivers();
+                Serial.println("[API] Drivers Updated Successfully");
                 http.end();
                 return true;
             }
         }
         else
         {
-            Serial.printf("[API] Parse Error: %s\n", error.c_str());
+            Serial.printf("[API] JSON Error: %s\n", error.c_str());
         }
     }
     http.end();
@@ -69,10 +78,11 @@ bool APIClient::fetchConstructorStandings()
         return false;
 
     HTTPClient http;
+    http.useHTTP10(true);
     http.begin(JOLPI_CONSTRUCTORS);
-    http.setTimeout(TIMEOUT_MS);
-    int httpCode = http.GET();
+    http.setTimeout(10000);
 
+    int httpCode = http.GET();
     if (httpCode == HTTP_CODE_OK)
     {
         JsonDocument doc;
@@ -88,15 +98,21 @@ bool APIClient::fetchConstructorStandings()
                 {
                     if (_cache->constructorCount >= DataCache::MAX_CONSTRUCTORS)
                         break;
+
                     ConstructorStanding &c = _cache->constructors[_cache->constructorCount];
-                    c.position = item["position"] | 0;
-                    c.points = item["points"] | 0;
+                    memset(&c, 0, sizeof(ConstructorStanding));
+
+                    c.position = atoi(item["position"] | "0");
+                    c.points = atoi(item["points"] | "0");
+
                     JsonObject construct = item["Constructor"];
-                    strlcpy(c.name, construct["name"] | "", sizeof(c.name));
+                    strlcpy(c.name, construct["name"] | "Unknown", sizeof(c.name));
+
                     _cache->constructorCount++;
                 }
                 _cache->constructorsLastUpdated = millis();
                 _cache->saveConstructors();
+                Serial.println("[API] Constructors Updated Successfully");
                 http.end();
                 return true;
             }

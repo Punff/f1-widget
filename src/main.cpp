@@ -78,9 +78,14 @@ void setup()
     constructorView = new ConstructorStandingsView(&tft, dm);
     newsView = new NewsView(&tft, dm);
 
+    // In setup()
     dm->registerView(0, driverView);
     dm->registerView(1, constructorView);
     dm->registerView(2, newsView);
+    // dm->registerView(3, driversView);
+    // dm->registerView(4, circuitsView);
+    // dm->registerView(5, calendarView);
+    // dm->registerView(6, settingsView);
     dm->init(menuView);
 
     encoder_init(-100, 100, 0);
