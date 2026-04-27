@@ -42,17 +42,21 @@ void MenuView::onTurnLeft()
 
 void MenuView::tick()
 {
+    static unsigned long lastDraw = 0;
+    if (millis() - lastDraw < 16)
+        return; // cap at ~60fps
+    lastDraw = millis();
+
     float target = _targetAngle(_activeIndex);
     float diff = target - _faceAngle;
-
     while (diff > 180.0f)
         diff -= 360.0f;
     while (diff < -180.0f)
         diff += 360.0f;
 
-    if (fabsf(diff) > 0.1f)
-    {
-        _faceAngle += diff * 0.22f;
+    if (fabsf(diff) > 1.0f)
+    { // tighter threshold
+        _faceAngle += diff * 0.25f;
         _erasePrev();
         _drawItems(_faceAngle);
         _isMoving = true;
@@ -161,15 +165,12 @@ uint32_t MenuView::_lerpCol(uint32_t a, uint32_t b, float t) const
         return a;
     if (t >= 1.0f)
         return b;
-
-    uint8_t r1 = (a >> 11) & 0x1F, g1 = (a >> 5) & 0x3F, b1 = a & 0x1F;
-    uint8_t r2 = (b >> 11) & 0x1F, g2 = (b >> 5) & 0x3F, b2 = b & 0x1F;
-
+    uint8_t r1 = (a >> 16) & 0xFF, g1 = (a >> 8) & 0xFF, b1 = a & 0xFF;
+    uint8_t r2 = (b >> 16) & 0xFF, g2 = (b >> 8) & 0xFF, b2 = b & 0xFF;
     uint8_t r = r1 + (r2 - r1) * t;
     uint8_t g = g1 + (g2 - g1) * t;
-    uint8_t b_ = b1 + (b2 - b1) * t;
-
-    return (r << 11) | (g << 5) | b_;
+    uint8_t bv = b1 + (b2 - b1) * t;
+    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | bv;
 }
 
 const char *MenuView::_label(int index) const
@@ -194,7 +195,13 @@ void MenuView::_itemPos(int i, float faceAngle, int &x, int &y) const
     y = (int)(EncoderWidget::CY + sinf(rad) * TEXT_RADIUS);
 }
 
+void MenuView::render()
+{
+    _drawItems(_faceAngle);
+    if (!_isMoving)
+        _drawLockIn(_activeIndex);
+}
+
 void MenuView::onPress() { _dm->launchMenuItem(_activeIndex); }
-void MenuView::render() { onEnter(); }
 void MenuView::onLongPress() {}
 void MenuView::onDoublePress() {}

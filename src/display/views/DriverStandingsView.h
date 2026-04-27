@@ -1,43 +1,54 @@
 #pragma once
-#ifndef DRIVER_STANDINGS_VIEW_H
-#define DRIVER_STANDINGS_VIEW_H
-
 #include "../IView.h"
-#include "../../../include/LGFX_Config.h"
 #include "../../data/DataCache.h"
+#include "../../../include/LGFX_Config.h"
 
-class DisplayManager;
+class DisplayManager; // Forward declaration
 
 class DriverStandingsView : public IView
 {
 public:
     DriverStandingsView(LGFX *tft, DisplayManager *dm);
 
+    // IView Interface Implementation
     void onEnter() override;
-    void onExit() override;
+    void onExit() override {} // FIX: Added missing virtual function
     void render() override;
-    void onTurnRight() override;   // scroll down
-    void onTurnLeft() override;    // scroll up
-    void onPress() override;       // TODO: expand driver detail
-    void onLongPress() override;   // back to menu — handled by DM
-    void onDoublePress() override; // TODO: context TBD
 
-    // Layout tweakables
-    static constexpr int ROW_HEIGHT = 36;
-    static constexpr int ROWS_VISIBLE = 8;
-    static constexpr int HEADER_H = 30;
-    static constexpr int COL_POS_X = 8;
-    static constexpr int COL_CODE_X = 40;
-    static constexpr int COL_NAME_X = 100;
-    static constexpr int COL_PTS_X = 400;
+    // Input Handling
+    void onTurnRight() override;
+    void onTurnLeft() override;
+    void onPress() override {}       // FIX: Added missing virtual function
+    void onLongPress() override {}   // FIX: Added missing virtual function
+    void onDoublePress() override {} // FIX: Added missing virtual function
+
+    // UI Constants
+    static constexpr int HEADER_H = 32;
+    static constexpr int FOOTER_H = 24;
+    static constexpr int FOOTER_Y = 296;
+    static constexpr int START_Y = HEADER_H;
+    static constexpr int ROWS_VISIBLE = 7;
+    static constexpr int ROW_H = 36;
+    static constexpr int CENTER_ROW = 3;
+    static constexpr int SAFE_W = 390;
+    static constexpr int ACCENT_W = 3;
+
+    // Layout Columns
+    static constexpr int COL_POS = 15;
+    static constexpr int COL_NAME = 60;
+    static constexpr int COL_PTS = SAFE_W - 15;
 
 private:
     LGFX *_tft;
     DisplayManager *_dm;
-    int _scrollOffset; // first visible row index
+    int _cursor;
+    int _scrollOffset;
 
     void _renderHeader();
-    void _renderRow(int rowY, int standing, bool highlight);
+    void _renderFooter();
+    void _renderRow(int row, int idx, int rowY);
+    void _renderConnector();
+    void _fullRedraw();
+    void _updateScrollOffset();
+    uint32_t _dimCol(uint32_t col, float b) const;
 };
-
-#endif

@@ -8,10 +8,10 @@ enum class MenuItem
 {
     DRIVER_STANDINGS = 0,
     CONSTRUCTOR_STANDINGS,
+    CALENDAR,
     NEWS,
     DRIVERS,
     CIRCUITS,
-    CALENDAR,
     SETTINGS,
     COUNT // This will now automatically be 7
 };

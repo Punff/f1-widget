@@ -1,130 +1,107 @@
 #include "DataCache.h"
 #include <LittleFS.h>
-#include <ArduinoJson.h>
 
-// 1. Define the global pointer (Fixes 'undefined reference' in main.cpp)
-DataCache *cache = nullptr;
-
-// 2. The Constructor
-// Prefix 'DataCache::' is CRITICAL for the linker
 DataCache::DataCache()
 {
-    driverCount = 0;
-    constructorCount = 0;
-    driversLastUpdated = 0;
-    constructorsLastUpdated = 0;
+    // Pre-allocate typical F1 sizes to prevent fragmentation
+    driverStandings.reserve(24);
+    constructorStandings.reserve(12);
+    calendar.reserve(25);
 }
 
-// ─── DRIVER METHODS ───────────────────────────────────────────────────────
-
-bool DataCache::loadDrivers()
+void DataCache::begin()
 {
-    if (!LittleFS.exists("/drivers.json"))
-        return false;
-    File file = LittleFS.open("/drivers.json", "r");
-    if (!file)
-        return false;
+    if (!LittleFS.begin(true))
+        return;
+    load();
+}
 
-    JsonDocument doc; // ArduinoJson 7 syntax
-    DeserializationError error = deserializeJson(doc, file);
-    if (error)
+uint16_t DataCache::hexTo565(const char *hexStr)
+{
+    if (!hexStr || hexStr[0] == '\0')
+        return 0x4208;
+    uint32_t rgb = strtoul(hexStr, NULL, 16);
+    uint8_t r = (rgb >> 16) & 0xFF;
+    uint8_t g = (rgb >> 8) & 0xFF;
+    uint8_t b = rgb & 0xFF;
+    return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+void DataCache::save()
+{
+    File file = LittleFS.open(CACHE_PATH, FILE_WRITE);
+    if (!file)
+        return;
+
+    // 1. Save Header/Metadata
+    file.write((uint8_t *)&currentSeason, sizeof(int));
+
+    // 2. Save Driver Standings
+    size_t dCount = driverStandings.size();
+    file.write((uint8_t *)&dCount, sizeof(size_t));
+    if (dCount > 0)
     {
-        file.close();
-        return false;
+        file.write((uint8_t *)driverStandings.data(), sizeof(DriverStanding) * dCount);
     }
 
-    JsonArray arr = doc.as<JsonArray>();
-    driverCount = 0;
-    for (JsonObject obj : arr)
+    // 3. Save Constructor Standings
+    size_t cCount = constructorStandings.size();
+    file.write((uint8_t *)&cCount, sizeof(size_t));
+    if (cCount > 0)
     {
-        if (driverCount >= MAX_DRIVERS)
-            break;
+        file.write((uint8_t *)constructorStandings.data(), sizeof(ConstructorStanding) * cCount);
+    }
 
-        drivers[driverCount].position = obj["pos"] | 0;
-        drivers[driverCount].points = obj["pts"] | 0;
-        strlcpy(drivers[driverCount].lastName, obj["name"] | "", 32);
-        driverCount++;
+    // 4. Save Calendar
+    size_t mCount = calendar.size();
+    file.write((uint8_t *)&mCount, sizeof(size_t));
+    if (mCount > 0)
+    {
+        file.write((uint8_t *)calendar.data(), sizeof(RaceMeeting) * mCount);
     }
 
     file.close();
-    return true;
 }
 
-bool DataCache::saveDrivers()
+void DataCache::load()
 {
-    File file = LittleFS.open("/drivers.json", "w");
+    if (!LittleFS.exists(CACHE_PATH))
+        return;
+    File file = LittleFS.open(CACHE_PATH, FILE_READ);
     if (!file)
-        return false;
+        return;
 
-    JsonDocument doc;
-    JsonArray arr = doc.to<JsonArray>();
+    file.read((uint8_t *)&currentSeason, sizeof(int));
 
-    for (int i = 0; i < driverCount; i++)
-    {
-        JsonObject obj = arr.add<JsonObject>(); // V7 syntax
-        obj["pos"] = drivers[i].position;
-        obj["pts"] = drivers[i].points;
-        obj["name"] = drivers[i].lastName;
-    }
+    // Load Drivers
+    size_t dCount;
+    file.read((uint8_t *)&dCount, sizeof(size_t));
+    driverStandings.resize(dCount);
+    if (dCount > 0)
+        file.read((uint8_t *)driverStandings.data(), sizeof(DriverStanding) * dCount);
 
-    serializeJson(doc, file);
+    // Load Constructors
+    size_t cCount;
+    file.read((uint8_t *)&cCount, sizeof(size_t));
+    constructorStandings.resize(cCount);
+    if (cCount > 0)
+        file.read((uint8_t *)constructorStandings.data(), sizeof(ConstructorStanding) * cCount);
+
+    // Load Calendar
+    size_t mCount;
+    file.read((uint8_t *)&mCount, sizeof(size_t));
+    calendar.resize(mCount);
+    if (mCount > 0)
+        file.read((uint8_t *)calendar.data(), sizeof(RaceMeeting) * mCount);
+
     file.close();
-    return true;
 }
 
-// ─── CONSTRUCTOR METHODS ──────────────────────────────────────────────────
-
-bool DataCache::loadConstructors()
+void DataCache::clear()
 {
-    if (!LittleFS.exists("/constructors.json"))
-        return false;
-    File file = LittleFS.open("/constructors.json", "r");
-    if (!file)
-        return false;
-
-    JsonDocument doc;
-    DeserializationError error = deserializeJson(doc, file);
-    if (error)
-    {
-        file.close();
-        return false;
-    }
-
-    JsonArray arr = doc.as<JsonArray>();
-    constructorCount = 0;
-    for (JsonObject obj : arr)
-    {
-        if (constructorCount >= MAX_CONSTRUCTORS)
-            break;
-
-        constructors[constructorCount].position = obj["pos"] | 0;
-        constructors[constructorCount].points = obj["pts"] | 0;
-        strlcpy(constructors[constructorCount].name, obj["name"] | "", 64);
-        constructorCount++;
-    }
-
-    file.close();
-    return true;
-}
-
-bool DataCache::saveConstructors()
-{
-    File file = LittleFS.open("/constructors.json", "w");
-    if (!file)
-        return false;
-
-    JsonDocument doc;
-    JsonArray arr = doc.to<JsonArray>();
-
-    for (int i = 0; i < constructorCount; i++)
-    {
-        JsonObject obj = arr.add<JsonObject>();
-        obj["pos"] = constructors[i].position;
-        obj["pts"] = constructors[i].points;
-        obj["name"] = constructors[i].name;
-    }
-
-    serializeJson(doc, file);
-    file.close();
-    return true;
+    driverStandings.clear();
+    constructorStandings.clear();
+    calendar.clear();
+    if (LittleFS.exists(CACHE_PATH))
+        LittleFS.remove(CACHE_PATH);
 }

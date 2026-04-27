@@ -4,10 +4,10 @@
 
 class DisplayManager;
 
-class ConstructorStandingsView : public IView
+class CalendarView : public IView
 {
 public:
-    ConstructorStandingsView(LGFX *tft, DisplayManager *dm);
+    CalendarView(LGFX *tft, DisplayManager *dm);
 
     void onEnter() override;
     void onExit() override {}
@@ -26,17 +26,13 @@ private:
     int _cursor;
     int _scrollOffset;
 
-    // FIX: Added missing declarations
     void _updateScrollOffset();
     void _renderHeader();
-    void _renderFooter();
     void _renderRow(int row, int idx, int rowY);
-    void _renderConnector();
     void _fullRedraw();
-    uint32_t _dimCol(uint32_t col, float b) const;
 
-    static constexpr int ROW_H = 36;
-    static constexpr int ROWS_VISIBLE = 7;
-    static constexpr int CENTER_ROW = 3;
+    static constexpr int ROW_H = 40; // Slightly taller for dates
+    static constexpr int ROWS_VISIBLE = 6;
+    static constexpr int CENTER_ROW = 2;
     static constexpr int SAFE_W = 390;
 };
