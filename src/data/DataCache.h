@@ -3,6 +3,11 @@
 #include <Arduino.h>
 #include <vector>
 
+class DataCache;  // Forward declaration
+
+// Global cache instance
+extern DataCache *cache;
+
 // ── DATA MODELS ──────────────────────────────────────────────────────
 
 struct Team

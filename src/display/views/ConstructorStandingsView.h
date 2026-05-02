@@ -1,42 +1,15 @@
 #pragma once
-#include "../IView.h"
-#include "../../../include/LGFX_Config.h"
+#include "ScrollListView.h"
 
-class DisplayManager;
-
-class ConstructorStandingsView : public IView
+class ConstructorStandingsView : public ScrollListView
 {
 public:
     ConstructorStandingsView(LGFX *tft, DisplayManager *dm);
 
-    void onEnter() override;
-    void onExit() override {}
-    void render() override;
-    void tick() override {}
-
-    void onTurnRight() override;
-    void onTurnLeft() override;
-    void onPress() override {}
-    void onLongPress() override {}
-    void onDoublePress() override {}
-
-private:
-    LGFX *_tft;
-    DisplayManager *_dm;
-    int _cursor;
-    int _scrollOffset;
-
-    // FIX: Added missing declarations
-    void _updateScrollOffset();
-    void _renderHeader();
-    void _renderFooter();
-    void _renderRow(int row, int idx, int rowY);
-    void _renderConnector();
-    void _fullRedraw();
-    uint32_t _dimCol(uint32_t col, float b) const;
-
-    static constexpr int ROW_H = 36;
-    static constexpr int ROWS_VISIBLE = 7;
-    static constexpr int CENTER_ROW = 3;
-    static constexpr int SAFE_W = 390;
+protected:
+    // ScrollListView implementation
+    int dataSize() const override;
+    void drawHeader() override;
+    void drawRow(int dataIdx, bool selected, int dist) override;
+    void drawFooter() override;
 };

@@ -1,6 +1,9 @@
 #include "DataCache.h"
 #include <LittleFS.h>
 
+// Global cache instance
+DataCache *cache = nullptr;
+
 DataCache::DataCache()
 {
     // Pre-allocate typical F1 sizes to prevent fragmentation

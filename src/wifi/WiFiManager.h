@@ -1,6 +1,7 @@
-#ifndef WIFI_MANAGER_H
-#define WIFI_MANAGER_H
+#pragma once
 
-void wifi_init();
-
-#endif
+/**
+ * Initializes WiFi using WiFiManager.
+ * Returns true if connected, false if it timed out or failed.
+ */
+bool wifi_init();

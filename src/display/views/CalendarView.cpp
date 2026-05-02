@@ -1,109 +1,91 @@
 #include "CalendarView.h"
 #include "../../data/DataCache.h"
+#include "../../../include/UI_Fonts.h"
 
 extern DataCache *cache;
 
 CalendarView::CalendarView(LGFX *tft, DisplayManager *dm)
-    : _tft(tft), _dm(dm), _cursor(0), _scrollOffset(0) {}
-
-void CalendarView::render()
+    : ScrollListView(tft, dm, 44, 6, 2)  // RowH=44px, 6 rows, center at index 2
 {
-    _fullRedraw();
-}
-void CalendarView::onEnter()
-{
-    _cursor = 0;
-    _tft->fillScreen(TFT_BLACK);
-    _updateScrollOffset();
-    _fullRedraw();
 }
 
-void CalendarView::_updateScrollOffset()
+int CalendarView::dataSize() const
 {
-    _scrollOffset = _cursor - CENTER_ROW;
+    return cache->calendar.size();
 }
 
-void CalendarView::_renderHeader()
+void CalendarView::drawHeader()
 {
-    _tft->fillRect(0, 0, SAFE_W, 40, 0x0000);
-    _tft->setTextDatum(middle_left);
-    _tft->setTextColor(0xBDF7);
-    _tft->drawString("2026 FORMULA 1", 10, 12);
-    _tft->setTextColor(TFT_WHITE);
-    _tft->drawString("SEASON CALENDAR", 10, 26);
-    _tft->drawFastHLine(0, 39, SAFE_W, 0xE80020);
+    _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
+
+    // Title - use centralized fonts
+    _tft->setTextDatum(top_left);
+    _tft->setTextColor(UI::COL_F1_RED);
+    _tft->setFont(UI::Fonts::HEADER_BIG);
+    _tft->drawString("F1", 10, 8);
+
+    _tft->setTextColor(UI::COL_TEXT);
+    _tft->setFont(UI::Fonts::BODY_MAIN);
+    _tft->drawString("SEASON CALENDAR", 75, 12);
+
+    // Red separator
+    _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
+
+    // Column headers
+    _tft->setTextColor(UI::COL_MUTED);
+    _tft->setFont(UI::Fonts::LABEL_SMALL);
+    _tft->drawString("RND", 15, 38);
+    _tft->drawString("COUNTRY", 70, 38);
+    _tft->drawString("DATE", 420, 38);
 }
 
-void CalendarView::_renderRow(int row, int idx, int rowY)
+void CalendarView::drawRow(int dataIdx, bool selected, int dist)
 {
-    bool selected = (row == CENTER_ROW);
-    uint16_t bg = selected ? _tft->color24to16(0x1A1A1A) : 0x0000;
+    const auto &rm = cache->calendar[dataIdx];
 
-    if (idx < 0 || idx >= (int)cache->calendar.size())
+    // Right-side stripe for selected row
+    if (selected)
     {
-        _tft->fillRect(0, rowY, SAFE_W, ROW_H, TFT_BLACK);
-        return;
+        _rowSprite->fillRect(UI::SAFE_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
     }
 
-    const auto &rm = cache->calendar[idx];
-    _tft->fillRect(0, rowY, SAFE_W, ROW_H, bg);
+    // Calculate brightness
+    float brightness = rowBrightness(dist);
+    uint32_t textCol = selected ? UI::COL_TEXT : dimCol(UI::COL_TEXT, brightness);
 
-    // Fade logic
-    int dist = abs(row - CENTER_ROW);
-    float brightness = (dist == 0) ? 1.0f : (1.0f - (dist * 0.25f));
-    uint16_t mainCol = selected ? TFT_WHITE : _tft->color24to16(0x7FFFFF); // Dimmed cyan/white
-
-    // Round Number
-    _tft->setTextDatum(middle_left);
-    _tft->setTextColor(0xE800, bg); // F1 Orange/Red for rounds
-
-    _tft->setCursor(10, rowY + 12);
-    _tft->printf("R%02d", rm.round);
-
-    // Country/Location
-    _tft->setTextColor(mainCol, bg);
-    _tft->setTextSize(selected ? 2 : 1);
-    _tft->drawString(rm.circuit.countryName, 60, rowY + ROW_H / 2);
-
-    // Date
-    _tft->setTextDatum(middle_right);
-    _tft->setTextSize(1);
-    _tft->setTextColor(0xBDF7, bg);
-    _tft->drawString(rm.date, SAFE_W - 15, rowY + ROW_H / 2);
-}
-
-void CalendarView::_fullRedraw()
-{
-    if (cache->calendar.empty())
+    // Round number
+    _rowSprite->setTextDatum(middle_left);
+    if (selected)
     {
-        _tft->drawCenterString("LOADING SCHEDULE...", 200, 160);
-        return;
+        _rowSprite->setFont(UI::Fonts::DATA_ACCENT);
+        _rowSprite->setTextColor(UI::COL_F1_RED);
     }
-    _tft->startWrite();
-    _renderHeader();
-    for (int i = 0; i < ROWS_VISIBLE; i++)
+    else
     {
-        _renderRow(i, _scrollOffset + i, 40 + (i * ROW_H));
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(textCol);
     }
-    _tft->endWrite();
-}
+    char roundStr[8];
+    snprintf(roundStr, sizeof(roundStr), "R%02d", rm.round);
+    _rowSprite->drawString(roundStr, 15, _rowH / 2);
 
-void CalendarView::onTurnRight()
-{
-    if (_cursor < (int)cache->calendar.size() - 1)
+    // Country name
+    _rowSprite->setTextDatum(middle_left);
+    if (selected)
     {
-        _cursor++;
-        _updateScrollOffset();
-        _fullRedraw();
+        _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+        _rowSprite->setTextColor(UI::COL_TEXT);
     }
-}
+    else
+    {
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(textCol);
+    }
+    _rowSprite->drawString(rm.circuit.countryName, 70, _rowH / 2);
 
-void CalendarView::onTurnLeft()
-{
-    if (_cursor > 0)
-    {
-        _cursor--;
-        _updateScrollOffset();
-        _fullRedraw();
-    }
+    // Date (right-aligned)
+    _rowSprite->setTextDatum(middle_right);
+    _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+    _rowSprite->setTextColor(UI::COL_TEXT_DIM);
+    _rowSprite->drawString(rm.date, 460, _rowH / 2);
 }

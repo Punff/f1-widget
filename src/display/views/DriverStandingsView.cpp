@@ -1,168 +1,140 @@
 #include "DriverStandingsView.h"
-#include "../DisplayManager.h"
-#include "../EncoderWidget.h"
 #include "../../data/DataCache.h"
+#include "../../../include/UI_Fonts.h"
 
 extern DataCache *cache;
 
 DriverStandingsView::DriverStandingsView(LGFX *tft, DisplayManager *dm)
-    : _tft(tft), _dm(dm), _cursor(0), _scrollOffset(0) {}
-
-void DriverStandingsView::onEnter()
+    : ScrollListView(tft, dm, 48, 6, 2) // RowH=48px, 6 rows, selection at index 2
 {
-    _cursor = 0;
-    _tft->fillScreen(TFT_BLACK);
-    _fullRedraw();
 }
 
-void DriverStandingsView::render()
+int DriverStandingsView::dataSize() const
 {
-    _fullRedraw();
+    return cache->driverStandings.size();
 }
 
-void DriverStandingsView::_updateScrollOffset()
+void DriverStandingsView::drawHeader()
 {
-    // Selection is always at CENTER_ROW
-    _scrollOffset = _cursor - CENTER_ROW;
+    _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
+
+    // Title - use centralized fonts
+    _tft->setTextDatum(top_left);
+    _tft->setTextColor(UI::COL_F1_RED);
+    _tft->setFont(UI::Fonts::HEADER_BIG);
+    _tft->drawString("F1", 10, 8);
+
+    _tft->setFont(UI::Fonts::HEADER_MEDIUM);
+    _tft->setTextColor(UI::COL_TEXT);
+    _tft->drawString("DRIVER STANDINGS", 75, 10);
+
+    // Red separator
+    _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
+
+    // Column headers
+    _tft->setTextColor(UI::COL_MUTED);
+    _tft->setFont(UI::Fonts::LABEL_SMALL);
+    _tft->drawString("#", COL_POS, 34);
+    _tft->drawString("DRIVER", COL_NAME, 34);
+    _tft->drawString("TEAM", COL_TEAM, 34);
+    _tft->drawString("PTS", COL_PTS - 25, 34);
 }
-
-void DriverStandingsView::_renderRow(int row, int idx, int rowY)
+// Typography - F1 Font Mappings
+// Use setFont() instead of setTextSize()
+// FONT_TINY  -> F1_FONT_REGULAR12
+// FONT_SMALL -> F1_FONT_REGULAR12
+// FONT_MEDIUM -> F1_FONT_REGULAR16
+// FONT_LARGE -> F1_FONT_WIDE20
+// F1 Logo/Headers -> F1_FONT_BOLD16 or F1_FONT_WIDE20
+void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
 {
-    bool selected = (row == CENTER_ROW);
-    uint16_t bg = selected ? _tft->color24to16(0x1A1A1A) : 0x0000;
+    const auto &ds = cache->driverStandings[dataIdx];
 
-    if (idx < 0 || idx >= (int)cache->driverStandings.size())
+    // Calculate brightness
+    float brightness = rowBrightness(dist);
+    uint32_t textCol = selected ? UI::COL_TEXT : dimCol(UI::COL_TEXT, brightness);
+    uint32_t ptsCol = selected ? ds.driver.team.teamColor : dimCol(UI::COL_TEXT, brightness);
+
+    // Team color bar on left edge
+    _rowSprite->fillRect(0, 0, 4, _rowH, ds.driver.team.teamColor);
+
+    // Right-side stripe for selected row (team color extension)
+    if (selected)
     {
-        _tft->fillRect(0, rowY, SAFE_W, ROW_H, TFT_BLACK);
-        return;
+        _rowSprite->fillRect(UI::SAFE_W - 4, 0, 4, _rowH, ds.driver.team.teamColor);
     }
 
-    const auto &ds = cache->driverStandings[idx];
-    _tft->fillRect(0, rowY, SAFE_W, ROW_H, bg);
-    _tft->fillRect(0, rowY, ACCENT_W, ROW_H, ds.driver.team.teamColor);
-
-    int dist = abs(row - CENTER_ROW);
-    float brightness = (dist == 0) ? 1.0f : (1.0f - (dist * 0.22f));
-    uint16_t textCol = selected ? TFT_WHITE : _tft->color24to16(_dimCol(0xFFFFFF, brightness));
-
-    _tft->setTextDatum(middle_left);
-    _tft->setTextColor(textCol, bg);
-
-    // This now shows the correct sorted position (1, 2, 3...)
-    _tft->setTextSize(1);
-    _tft->drawNumber(ds.position, COL_POS, rowY + ROW_H / 2);
-
-    _tft->setTextSize(selected ? 2 : 1);
-    _tft->drawString(ds.driver.lastName, COL_NAME, rowY + ROW_H / 2);
-
-    _tft->setTextDatum(middle_right);
-    _tft->setTextColor(selected ? ds.driver.team.teamColor : textCol, bg);
-    _tft->drawNumber(ds.points, COL_PTS, rowY + ROW_H / 2);
-}
-
-void DriverStandingsView::_renderConnector()
-{
-    int cy = START_Y + (CENTER_ROW * ROW_H) + (ROW_H / 2);
-    if (_cursor < (int)cache->driverStandings.size())
+    // Position - use DATA_ACCENT for selected
+    _rowSprite->setTextDatum(middle_left);
+    if (selected)
     {
-        uint16_t teamCol = cache->driverStandings[_cursor].driver.team.teamColor;
-
-        int x1 = SAFE_W;
-        int x2 = EncoderWidget::CX - EncoderWidget::RADIUS - 5;
-
-        // Pointer aligned with encoder wheel
-        _tft->drawFastHLine(x1, cy, x2 - x1, teamCol);
-        _tft->fillTriangle(x1 + 5, cy, x1, cy - 5, x1, cy + 5, teamCol);
+        _rowSprite->setFont(UI::Fonts::DATA_ACCENT);
+        _rowSprite->setTextColor(ds.driver.team.teamColor);
     }
+    else
+    {
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(textCol);
+    }
+    _rowSprite->drawNumber(ds.position, COL_POS, _rowH / 2);
+
+    // Driver name
+    _rowSprite->setTextDatum(middle_left);
+    if (selected)
+    {
+        _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+        _rowSprite->setTextColor(UI::COL_TEXT);
+        _rowSprite->drawString(ds.driver.lastName, COL_NAME, _rowH / 2);
+    }
+    else
+    {
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(textCol);
+        _rowSprite->drawString(ds.driver.acronym, COL_NAME, _rowH / 2);
+    }
+
+    // Team name
+    _rowSprite->setTextDatum(middle_left);
+    _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+    _rowSprite->setTextColor(selected ? UI::COL_TEXT_DIM : dimCol(UI::COL_TEXT_DIM, brightness));
+    _rowSprite->drawString(ds.driver.team.name, COL_TEAM, _rowH / 2);
+
+    // Points (right-aligned)
+    _rowSprite->setTextDatum(middle_right);
+    if (selected)
+    {
+        _rowSprite->setFont(UI::Fonts::DATA_ACCENT);
+        _rowSprite->setTextColor(ptsCol);
+    }
+    else
+    {
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(ptsCol);
+    }
+    _rowSprite->drawNumber(ds.points, COL_PTS, _rowH / 2);
 }
 
-void DriverStandingsView::_renderHeader()
+void DriverStandingsView::drawFooter()
 {
-    _tft->fillRect(0, 0, SAFE_W, HEADER_H, 0x0000);
-
-    // F1 Style "Championship" Header
-    _tft->setTextDatum(middle_left);
-    _tft->setTextColor(0xBDF7); // Soft Grey
-    _tft->setTextSize(1);
-    _tft->drawString("FORMULA 1 WORLD CHAMPIONSHIP", 10, 10);
-
-    _tft->setTextColor(TFT_WHITE);
-    _tft->setTextSize(1);
-    _tft->drawString("DRIVER STANDINGS", 10, 22);
-
-    // Accent line
-    _tft->drawFastHLine(0, HEADER_H - 1, SAFE_W, 0x4208);
-}
-
-void DriverStandingsView::_renderFooter()
-{
-    _tft->fillRect(0, FOOTER_Y, SAFE_W, FOOTER_H, 0x0000);
-    if (_cursor >= (int)cache->driverStandings.size())
+    if (cache->driverStandings.empty() || _cursor >= (int)cache->driverStandings.size())
         return;
 
     const auto &sel = cache->driverStandings[_cursor];
     const auto &leader = cache->driverStandings[0];
     int gap = leader.points - sel.points;
 
-    _tft->setTextSize(1);
-    _tft->setTextDatum(middle_right);
-
-    char buf[32];
+    char buf[48];
+    uint32_t color;
     if (_cursor == 0)
     {
-        _tft->setTextColor(sel.driver.team.teamColor);
-        snprintf(buf, sizeof(buf), "CHAMPIONSHIP LEADER");
+        color = sel.driver.team.teamColor;
+        snprintf(buf, sizeof(buf), "CHAMPION: %s", sel.driver.lastName);
     }
     else
     {
-        _tft->setTextColor(0xBDF7);
-        snprintf(buf, sizeof(buf), "GAP TO P1: +%d PTS", gap);
+        color = UI::COL_TEXT_DIM;
+        snprintf(buf, sizeof(buf), "Gap to P1: +%d pts", gap);
     }
 
-    _tft->drawString(buf, COL_PTS, FOOTER_Y + FOOTER_H / 2);
-}
-void DriverStandingsView::_fullRedraw()
-{
-    if (cache->driverStandings.empty())
-    {
-        _tft->drawCenterString("SYNCING DATA...", 200, 160);
-        return;
-    }
-
-    _updateScrollOffset();
-    _tft->startWrite();
-    _renderHeader();
-    for (int row = 0; row < ROWS_VISIBLE; row++)
-    {
-        _renderRow(row, _scrollOffset + row, START_Y + (row * ROW_H));
-    }
-    _renderConnector();
-    _renderFooter();
-    _tft->endWrite();
-}
-
-void DriverStandingsView::onTurnRight()
-{
-    if (_cursor < (int)cache->driverStandings.size() - 1)
-    {
-        _cursor++;
-        _fullRedraw();
-    }
-}
-
-void DriverStandingsView::onTurnLeft()
-{
-    if (_cursor > 0)
-    {
-        _cursor--;
-        _fullRedraw();
-    }
-}
-
-uint32_t DriverStandingsView::_dimCol(uint32_t col, float b) const
-{
-    uint8_t r = ((col >> 16) & 0xFF) * b;
-    uint8_t g = ((col >> 8) & 0xFF) * b;
-    uint8_t bv = (col & 0xFF) * b;
-    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | bv;
+    drawFooterText(buf, UI::SCREEN_W - 10, UI::FOOTER_Y + (UI::FOOTER_H / 2), color, UI::FONT_SMALL);
 }

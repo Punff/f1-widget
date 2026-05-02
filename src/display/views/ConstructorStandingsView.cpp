@@ -1,114 +1,107 @@
 #include "ConstructorStandingsView.h"
 #include "../../data/DataCache.h"
-#include "../EncoderWidget.h"
+#include "../../../include/UI_Fonts.h"
 
 extern DataCache *cache;
 
 ConstructorStandingsView::ConstructorStandingsView(LGFX *tft, DisplayManager *dm)
-    : _tft(tft), _dm(dm), _cursor(0), _scrollOffset(0) {}
-
-// ── Lifecycle ─────────────────────────────────────────────────────────────
-
-void ConstructorStandingsView::onEnter()
+    : ScrollListView(tft, dm, 42, 6, 3) // RowH=42px, 6 rows (not 7!), center at index 3
 {
-    _cursor = 0;
-    _tft->fillScreen(TFT_BLACK);
-    _updateScrollOffset();
-    _fullRedraw();
 }
 
-void ConstructorStandingsView::render()
+int ConstructorStandingsView::dataSize() const
 {
-    _fullRedraw();
+    return cache->constructorStandings.size();
 }
 
-// ── Rendering Logic ───────────────────────────────────────────────────────
-
-void ConstructorStandingsView::_updateScrollOffset()
+void ConstructorStandingsView::drawHeader()
 {
-    // Locked Selection: Selection is always at CENTER_ROW (3)
-    _scrollOffset = _cursor - CENTER_ROW;
+    _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
+
+    // Title - use centralized fonts
+    _tft->setTextDatum(top_left);
+    _tft->setTextColor(UI::COL_F1_RED);
+    _tft->setFont(UI::Fonts::HEADER_BIG);
+    _tft->drawString("F1", 10, 8);
+
+    _tft->setTextColor(UI::COL_TEXT);
+    _tft->setFont(UI::Fonts::BODY_MAIN);
+    _tft->drawString("CONSTRUCTOR STANDINGS", 75, 12);
+
+    // Red separator
+    _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
+
+    // Column headers
+    _tft->setTextColor(UI::COL_MUTED);
+    _tft->setFont(UI::Fonts::LABEL_SMALL);
+    _tft->drawString("#", 20, 34);
+    _tft->drawString("TEAM", 65, 34);
+    _tft->drawString("PTS", 430, 34);
 }
 
-void ConstructorStandingsView::_renderHeader()
+void ConstructorStandingsView::drawRow(int dataIdx, bool selected, int dist)
 {
-    _tft->fillRect(0, 0, SAFE_W, 40, 0x0000);
+    const auto &cs = cache->constructorStandings[dataIdx];
 
-    _tft->setTextDatum(middle_left);
-    _tft->setTextColor(0xBDF7); // Soft F1 Grey
-    _tft->setTextSize(1);
-    _tft->drawString("FORMULA 1 WORLD CHAMPIONSHIP", 10, 12);
+    // Team color bar on left
+    _rowSprite->fillRect(0, 0, 4, _rowH, cs.team.teamColor);
 
-    _tft->setTextColor(TFT_WHITE);
-    _tft->setTextSize(1);
-    _tft->drawString("CONSTRUCTOR STANDINGS", 10, 26);
-
-    // F1 Red Accent Line
-    _tft->drawFastHLine(0, 39, SAFE_W, 0xE80020);
-}
-
-void ConstructorStandingsView::_renderRow(int row, int idx, int rowY)
-{
-    bool selected = (row == CENTER_ROW);
-    uint32_t bg24 = selected ? 0x1A1A1A : 0x000000;
-    uint16_t bg16 = _tft->color24to16(bg24);
-
-    // Bounds Check
-    if (idx < 0 || idx >= (int)cache->constructorStandings.size())
+    // Right-side stripe for selected row
+    if (selected)
     {
-        _tft->fillRect(0, rowY, SAFE_W, ROW_H, TFT_BLACK);
-        return;
+        _rowSprite->fillRect(UI::SAFE_W - 4, 0, 4, _rowH, cs.team.teamColor);
     }
 
-    const auto &cs = cache->constructorStandings[idx];
-
-    // Background and Team Accent
-    _tft->fillRect(0, rowY, SAFE_W, ROW_H, bg16);
-    _tft->fillRect(0, rowY, 4, ROW_H, cs.team.teamColor);
-
-    // Dimming logic for non-selected rows
-    int dist = abs(row - CENTER_ROW);
-    float brightness = (dist == 0) ? 1.0f : (1.0f - (dist * 0.22f));
-    uint16_t textCol = selected ? TFT_WHITE : _tft->color24to16(_dimCol(0xFFFFFF, brightness));
-
-    _tft->setTextDatum(middle_left);
-    _tft->setTextColor(textCol, bg16);
+    // Calculate colors
+    float brightness = rowBrightness(dist);
+    uint32_t textCol = selected ? UI::COL_TEXT : dimCol(UI::COL_TEXT, brightness);
+    uint32_t ptsCol = selected ? cs.team.teamColor : dimCol(UI::COL_TEXT, brightness);
 
     // Position
-    _tft->setTextSize(1);
-    _tft->drawNumber(cs.position, 18, rowY + ROW_H / 2);
-
-    // Team Name
-    _tft->setTextSize(selected ? 2 : 1);
-    _tft->drawString(cs.team.name, 65, rowY + ROW_H / 2);
-
-    // Points
-    _tft->setTextDatum(middle_right);
-    uint16_t ptsCol = selected ? cs.team.teamColor : textCol;
-    _tft->setTextColor(ptsCol, bg16);
-    _tft->drawNumber(cs.points, SAFE_W - 15, rowY + ROW_H / 2);
-}
-
-void ConstructorStandingsView::_renderConnector()
-{
-    // Aligns visually with the hardware encoder knob
-    int cy = 40 + (CENTER_ROW * ROW_H) + (ROW_H / 2);
-
-    if (_cursor < (int)cache->constructorStandings.size())
+    _rowSprite->setTextDatum(middle_left);
+    if (selected)
     {
-        uint16_t teamCol = cache->constructorStandings[_cursor].team.teamColor;
-
-        int x1 = SAFE_W;
-        int x2 = EncoderWidget::CX - EncoderWidget::RADIUS - 5;
-
-        _tft->drawFastHLine(x1, cy, x2 - x1, teamCol);
-        _tft->fillTriangle(x1 + 6, cy, x1, cy - 6, x1, cy + 6, teamCol);
+        _rowSprite->setFont(UI::Fonts::DATA_ACCENT);
+        _rowSprite->setTextColor(cs.team.teamColor);
     }
+    else
+    {
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(textCol);
+    }
+    _rowSprite->drawNumber(cs.position, 20, _rowH / 2);
+
+    // Team name
+    _rowSprite->setTextDatum(middle_left);
+    if (selected)
+    {
+        _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+        _rowSprite->setTextColor(UI::COL_TEXT);
+    }
+    else
+    {
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(textCol);
+    }
+    _rowSprite->drawString(cs.team.name, 65, _rowH / 2);
+
+    // Points (right-aligned)
+    _rowSprite->setTextDatum(middle_right);
+    if (selected)
+    {
+        _rowSprite->setFont(UI::Fonts::DATA_ACCENT);
+        _rowSprite->setTextColor(ptsCol);
+    }
+    else
+    {
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(ptsCol);
+    }
+    _rowSprite->drawNumber(cs.points, 460, _rowH / 2);
 }
 
-void ConstructorStandingsView::_renderFooter()
+void ConstructorStandingsView::drawFooter()
 {
-    _tft->fillRect(0, 296, SAFE_W, 24, 0x0000);
     if (cache->constructorStandings.empty() || _cursor >= (int)cache->constructorStandings.size())
         return;
 
@@ -116,73 +109,23 @@ void ConstructorStandingsView::_renderFooter()
     const auto &leader = cache->constructorStandings[0];
     int gap = leader.points - sel.points;
 
-    _tft->setTextSize(1);
-    _tft->setTextDatum(middle_right);
-
-    char buf[32];
+    char buf[48];
+    uint32_t color;
     if (_cursor == 0)
     {
-        _tft->setTextColor(sel.team.teamColor);
-        snprintf(buf, sizeof(buf), "CHAMPIONSHIP LEADER");
+        color = sel.team.teamColor;
+        snprintf(buf, sizeof(buf), "CHAMPION: %s", sel.team.name);
     }
     else
     {
-        _tft->setTextColor(0xBDF7); // Grey
-        snprintf(buf, sizeof(buf), "GAP TO P1: +%d PTS", gap);
-    }
-    _tft->drawString(buf, SAFE_W - 10, 296 + 12);
-}
-
-void ConstructorStandingsView::_fullRedraw()
-{
-    if (cache->constructorStandings.empty())
-    {
-        _tft->drawCenterString("WAITING FOR DATA...", 200, 160);
-        return;
+        color = UI::COL_TEXT_DIM;
+        snprintf(buf, sizeof(buf), "Gap to P1: +%d pts", gap);
     }
 
-    _updateScrollOffset();
-    _tft->startWrite();
-
-    _renderHeader();
-
-    for (int row = 0; row < ROWS_VISIBLE; row++)
-    {
-        _renderRow(row, _scrollOffset + row, 40 + (row * ROW_H));
-    }
-
-    _renderConnector();
-    _renderFooter();
-
-    _tft->endWrite();
-}
-
-// ── Input Handling ────────────────────────────────────────────────────────
-
-void ConstructorStandingsView::onTurnRight()
-{
-    if (_cursor < (int)cache->constructorStandings.size() - 1)
-    {
-        _cursor++;
-        _fullRedraw();
-    }
-}
-
-void ConstructorStandingsView::onTurnLeft()
-{
-    if (_cursor > 0)
-    {
-        _cursor--;
-        _fullRedraw();
-    }
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-uint32_t ConstructorStandingsView::_dimCol(uint32_t col, float b) const
-{
-    uint8_t r = ((col >> 16) & 0xFF) * b;
-    uint8_t g = ((col >> 8) & 0xFF) * b;
-    uint8_t bv = (col & 0xFF) * b;
-    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | bv;
+    // Draw footer directly (no optimization)
+    _tft->fillRect(0, UI::FOOTER_Y, UI::SCREEN_W, UI::FOOTER_H, UI::COL_BG);
+    _tft->setTextColor(color);
+    _tft->setFont(UI::Fonts::LABEL_SMALL);
+    _tft->setTextDatum(middle_right);
+    _tft->drawString(buf, UI::SCREEN_W - 10, UI::FOOTER_Y + (UI::FOOTER_H / 2));
 }
