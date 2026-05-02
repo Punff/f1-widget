@@ -9,6 +9,8 @@ public:
 protected:
     // ScrollListView implementation
     int dataSize() const override;
+    void onEnter() override;
     void drawHeader() override;
     void drawRow(int dataIdx, bool selected, int dist) override;
+    void onPress() override;
 };

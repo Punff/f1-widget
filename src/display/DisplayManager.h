@@ -2,6 +2,7 @@
 #include "IView.h"
 #include "views/UI.h"
 #include "UI_Fonts.h"
+#include "views/WeekendView.h"
 
 class LGFX;
 
@@ -27,6 +28,7 @@ public:
 
     void registerView(MenuItem item, IView *view);
     void launchMenuItem(int menuIndex);
+    void launchWeekendView(const RaceMeeting *meeting);
 
     LGFX *tft() const;
 
@@ -37,4 +39,5 @@ private:
     IView *_currentView;
     IView *_menuView;
     IView *_viewRegistry[REGISTRY_SIZE];
+    WeekendView *_weekendView = nullptr;
 };

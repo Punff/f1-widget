@@ -54,15 +54,23 @@ struct Circuit
     char trackImageUrl[128];
 };
 
+struct Session
+{
+    char name[32];      // "Practice 1", "Qualifying", "Race"
+    char dateUtc[32];   // "2026-03-15T06:00:00Z"
+};
+
 struct RaceMeeting
 {
-    int round;      // <--- Add this for Jolpica round number
+    int round;
     int meetingKey; // From OpenF1
     char officialName[128];
     char dateStart[32];
     char dateEnd[32];
-    char date[12]; // <--- Add this for Jolpica "YYYY-MM-DD"
+    char date[12];
     Circuit circuit;
+    Session sessions[6];
+    int sessionCount;
 };
 
 // ── DYNAMIC CACHE CONTROLLER ──────────────────────────────────────────

@@ -57,7 +57,18 @@ void ScrollListView::onTurnLeft()
 
 void ScrollListView::updateScrollOffset()
 {
-    _scrollOffset = _cursor - _centerRow;
+    // Keep selected row at center IF possible
+    int newOffset = _cursor - _centerRow;
+    
+    // Clamp: don't go below 0
+    if (newOffset < 0) newOffset = 0;
+    
+    // Clamp: don't exceed (dataSize - rowsVisible)
+    int maxOffset = dataSize() - _rowsVisible;
+    if (maxOffset < 0) maxOffset = 0;
+    if (newOffset > maxOffset) newOffset = maxOffset;
+    
+    _scrollOffset = newOffset;
 }
 
 void ScrollListView::fullRedraw()
@@ -144,13 +155,27 @@ void ScrollListView::drawSingleRow(int row)
     int dist = abs(row - _centerRow);
     int rowY = UI::HEADER_H + (row * _rowH);
 
-    // Background
-    _rowSprite->fillSprite(selected ? UI::COL_BG_SEL : UI::COL_BG);
+    // Clear sprite to black first
+    _rowSprite->fillSprite(UI::COL_BG);
+
+    // Debug: print sprite info
+    static int dbg = 0;
+    if (dbg < 3) {
+        Serial.printf("[SPRITE] w=%d, h=%d, ready=%d\n", 
+            _rowSprite->width(), _rowSprite->height(), _rowSprite->getBuffer() ? 1 : 0);
+        dbg++;
+    }
 
     // Draw row content
     if (dataIdx >= 0 && dataIdx < dataSize())
     {
         drawRow(dataIdx, selected, dist);
+    }
+
+    // Debug: check what's in the sprite after drawing
+    if (row == 0 && dbg < 5) {
+        Serial.printf("[PUSH] row=%d, dataIdx=%d, y=%d, selected=%d\n", 
+            row, dataIdx, rowY, selected);
     }
 
     // Push row to screen

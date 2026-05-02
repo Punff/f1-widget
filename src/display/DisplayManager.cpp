@@ -6,34 +6,41 @@ void DisplayManager::drawSplash()
 {
     _tft->fillScreen(UI::COL_BG);
 
-    // Ensure we use LittleFS here
-    if (!LittleFS.begin())
+    // LittleFS should already be mounted in main.cpp
+    const char *path = "/F1-Logo-PNG-Cutout.png";
+
+    if (LittleFS.exists(path))
     {
-        Serial.println("[ERROR] LittleFS Mount Failed!");
+        File f = LittleFS.open(path, "r");
+        if (f)
+        {
+            // drawPng returns true on success
+            if (_tft->drawPng(&f, (size_t)f.size(), 0, 0))
+            {
+                f.close();
+                return;
+            }
+            f.close();
+        }
     }
     else
     {
-        // Path must be root '/'
-        const char *path = "/F1-Logo-PNG-Cutout.png";
-
-        if (LittleFS.exists(path))
-        {
-            File f = LittleFS.open(path, "r");
-            if (f)
-            {
-                bool success = _tft->drawPng(&f, (size_t)f.size(), 0, 0);
-                f.close();
-                if (success)
-                    return;
-            }
-        }
-        else
-        {
-            Serial.printf("[ERROR] %s not found on LittleFS\n", path);
-        }
+        Serial.printf("[SPLASH] %s not found on LittleFS\n", path);
     }
 
-    // Fallback drawing...
+    // Fallback: Draw F1 text logo
+    _tft->setTextDatum(middle_center);
+    _tft->setTextColor(UI::COL_F1_RED);
+    _tft->setFont(&fonts::Font8);
+    _tft->drawString("F1", 240, 140);
+    
+    _tft->setTextColor(UI::COL_TEXT);
+    _tft->setFont(&fonts::Font2);
+    _tft->drawString("WIDGET", 240, 180);
+    
+    _tft->setTextColor(UI::COL_MUTED);
+    _tft->setFont(&fonts::Font0);
+    _tft->drawString("2026 Season", 240, 210);
 }
 
 DisplayManager::DisplayManager(LGFX *tft)
@@ -70,6 +77,10 @@ void DisplayManager::setView(IView *view)
 
 void DisplayManager::returnToMenu()
 {
+    if (_weekendView) {
+        delete _weekendView;
+        _weekendView = nullptr;
+    }
     setView(_menuView);
 }
 
@@ -110,6 +121,14 @@ void DisplayManager::launchMenuItem(int menuIndex)
 {
     if (menuIndex >= 0 && menuIndex < REGISTRY_SIZE && _viewRegistry[menuIndex])
         setView(_viewRegistry[menuIndex]);
+}
+
+void DisplayManager::launchWeekendView(const RaceMeeting *meeting) {
+    if (_weekendView) {
+        delete _weekendView;
+    }
+    _weekendView = new WeekendView(_tft, this, meeting);
+    setView(_weekendView);
 }
 
 LGFX *DisplayManager::tft() const { return _tft; }
