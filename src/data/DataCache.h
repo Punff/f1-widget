@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <vector>
 
-class DataCache;  // Forward declaration
+class DataCache; // Forward declaration
 
 // Global cache instance
 extern DataCache *cache;
@@ -56,8 +56,8 @@ struct Circuit
 
 struct Session
 {
-    char name[32];      // "Practice 1", "Qualifying", "Race"
-    char dateUtc[32];   // "2026-03-15T06:00:00Z"
+    char name[32];    // "Practice 1", "Qualifying", "Race"
+    char dateUtc[32]; // "2026-03-15T06:00:00Z"
 };
 
 struct RaceMeeting

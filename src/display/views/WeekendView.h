@@ -7,6 +7,7 @@ public:
     WeekendView(LGFX *tft, DisplayManager *dm, const RaceMeeting *meeting);
 protected:
     int dataSize() const override;
+    void onEnter() override;
     void drawHeader() override;
     void drawRow(int dataIdx, bool selected, int dist) override;
     void drawFooter() override;

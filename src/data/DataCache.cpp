@@ -20,15 +20,21 @@ void DataCache::begin()
 uint16_t DataCache::hexTo565(const char *hexStr)
 {
     if (!hexStr || hexStr[0] == '\0')
-        return 0x4208;
-    uint32_t rgb = strtoul(hexStr, NULL, 16);
+        return 0x4208; // Muted grey fallback
+
+    // OpenF1 hex might be "FF0000" or "#FF0000"
+    const char* start = (hexStr[0] == '#') ? hexStr + 1 : hexStr;
+    uint32_t rgb = strtoul(start, NULL, 16);
+    
     uint8_t r = (rgb >> 16) & 0xFF;
     uint8_t g = (rgb >> 8) & 0xFF;
     uint8_t b = rgb & 0xFF;
+
+    // Convert to RGB565 (5 bits R, 6 bits G, 5 bits B)
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
-const uint32_t CACHE_MAGIC = 0xF1CA0002; // Versioned magic
+const uint32_t CACHE_MAGIC = 0xF1CA0006; // Bumped — sessions now parsed from Jolpica instead of OpenF1
 
 void DataCache::save()
 {
