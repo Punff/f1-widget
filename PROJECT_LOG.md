@@ -1,6 +1,18 @@
 # F1 Embedded Widget OS: Core Architecture & UI/UX Specification
 
-**Target Hardware:** ESP32 / 480x320 TN Panel TFT via LovyanGFX / Rotary Encoder with Click Button
+## 0. Current Status & Accomplishments (May 2026)
+
+*   **Fixed Boot Crash:** Resolved LittleFS double-mount `abort()` and cache file corruption.
+*   **Memory Optimization:** Refactored `ScrollListView` for lazy row-sprite allocation, saving ~200KB RAM.
+*   **API Efficiency:** Optimized `APIClient` with stream-based JSON parsing and bulk session fetching (OpenF1), significantly reducing heap fragmentation and SSL memory failures.
+*   **Cache Integrity:** Implemented Magic Number validation and auto-cleanup for corrupt `DataCache` files.
+*   **UI Polish:** Completed `DriverStandingsView` and `ConstructorStandingsView` with team color accents, high-contrast layouts, and gap telemetry in footers.
+
+**Next Up:**
+1.  **NewsView Implementation:** Replace placeholder with real headline/summary "Page-Flip" system.
+2.  **CalendarView Polish:** Ensure next-race detection is robust and sessions are displayed correctly.
+3.  **WeekendView Implementation:** Build the detailed session schedule and live track status dashboard.
+4.  **Settings View:** Implement brightness control and system diagnostics.
 
 ---
 

@@ -214,16 +214,13 @@ bool ScrollListView::_footerTextChanged(const char *newText)
 
 void ScrollListView::drawFooterText(const char *text, int x, int y, uint32_t color, uint8_t size)
 {
-    // Always redraw footer - clear ENTIRE footer area
+    // Clear footer area to prevent text overlap
     _tft->fillRect(0, UI::FOOTER_Y, UI::SCREEN_W, UI::FOOTER_H, UI::COL_BG);
 
-    // Draw new text
     _tft->setTextColor(color);
     _tft->setTextSize(size);
     _tft->setTextDatum(middle_right);
     _tft->drawString(text, x, y);
 
-    // Update last text for potential future optimization
     strncpy(_lastFooterText, text, sizeof(_lastFooterText) - 1);
-    _lastFooterText[sizeof(_lastFooterText) - 1] = '\0';
 }
