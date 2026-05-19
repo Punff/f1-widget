@@ -18,7 +18,7 @@ static time_t my_timegm(struct tm *t)
 
 // Column offsets
 static constexpr int COL_RND = 12;
-static constexpr int COL_NAME = 56;
+static constexpr int COL_NAME = 75;
 static constexpr int COL_DATE = 360;
 static constexpr int COL_STATUS = 468;
 
@@ -70,18 +70,7 @@ int CalendarView::dataSize() const
 
 void CalendarView::drawHeader()
 {
-    _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
-
-    _tft->setTextDatum(top_left);
-    _tft->setTextColor(UI::COL_F1_RED);
-    _tft->setFont(UI::Fonts::HEADER_BIG);
-    _tft->drawString("F1", 10, 8);
-
-    _tft->setTextColor(UI::COL_TEXT);
-    _tft->setFont(UI::Fonts::BODY_MAIN);
-    _tft->drawString("SEASON CALENDAR", 75, 12);
-
-    _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
+    _dm->header()->draw("SEASON CALENDAR");
 
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);

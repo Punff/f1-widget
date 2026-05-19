@@ -1,4 +1,5 @@
 #include "DriverStandingsView.h"
+#include "../DisplayManager.h"
 #include "../../data/DataCache.h"
 #include "../../../include/UI_Fonts.h"
 
@@ -22,20 +23,7 @@ int DriverStandingsView::dataSize() const
 
 void DriverStandingsView::drawHeader()
 {
-    _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
-
-    // Title
-    _tft->setTextDatum(top_left);
-    _tft->setTextColor(UI::COL_F1_RED);
-    _tft->setFont(UI::Fonts::HEADER_BIG);
-    _tft->drawString("F1", 10, 8);
-
-    _tft->setFont(UI::Fonts::HEADER_MEDIUM);
-    _tft->setTextColor(UI::COL_TEXT);
-    _tft->drawString("DRIVER STANDINGS", 75, 10);
-
-    // Red separator
-    _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
+    _dm->header()->draw("DRIVER STANDINGS");
 
     // Column headers
     _tft->setTextColor(UI::COL_MUTED);
@@ -62,13 +50,14 @@ void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
         _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, tc);
     }
 
-    // Position
+    // Position — team color
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(UI::COL_TEXT);
+    _rowSprite->setTextColor(tc);
     _rowSprite->drawNumber(ds.position, COL_POS, _rowH / 2);
 
-    // Driver acronym
+    // Driver acronym — white
+    _rowSprite->setTextColor(UI::COL_TEXT);
     _rowSprite->drawString(ds.driver.acronym, COL_NAME, _rowH / 2);
 
     // Team name (dimmed)
@@ -85,6 +74,8 @@ void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
 
 void DriverStandingsView::drawFooter()
 {
+    _dm->footer()->draw();
+
     if (cache->driverStandings.empty() || _cursor >= (int)cache->driverStandings.size())
         return;
 
@@ -105,5 +96,5 @@ void DriverStandingsView::drawFooter()
         snprintf(buf, sizeof(buf), "GAP TO P1: +%d PTS", gap);
     }
 
-    drawFooterText(buf, UI::SCREEN_W - 10, UI::FOOTER_Y + (UI::FOOTER_H / 2), color, UI::FONT_SMALL);
+    _dm->footer()->drawText(buf, color);
 }

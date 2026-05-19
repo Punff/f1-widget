@@ -6,7 +6,6 @@ ScrollListView::ScrollListView(LGFX *tft, DisplayManager *dm, int rowH, int rows
     : _tft(tft), _dm(dm), _cursor(0), _scrollOffset(0),
       _rowH(rowH), _rowsVisible(rowsVisible), _centerRow(centerRow)
 {
-    _lastFooterText[0] = '\0';
     _rowSprite = nullptr; // Will get from DisplayManager
 }
 
@@ -81,7 +80,6 @@ void ScrollListView::fullRedraw()
     for (int row = 0; row < _rowsVisible; row++)
         drawSingleRow(row);
 
-    _tft->drawFastHLine(0, UI::FOOTER_Y - 1, UI::SCREEN_W, UI::COL_F1_RED);
     drawFooter();
 }
 
@@ -132,15 +130,4 @@ void ScrollListView::drawSingleRow(int row)
     _rowSprite->pushSprite(0, rowY);
 }
 
-void ScrollListView::drawFooterText(const char *text, int x, int y, uint32_t color, uint8_t size)
-{
-    // Clear footer area to prevent text overlap
-    _tft->fillRect(0, UI::FOOTER_Y, UI::SCREEN_W, UI::FOOTER_H, UI::COL_BG);
 
-    _tft->setTextColor(color);
-    _tft->setTextSize(size);
-    _tft->setTextDatum(middle_right);
-    _tft->drawString(text, x, y);
-
-    strncpy(_lastFooterText, text, sizeof(_lastFooterText) - 1);
-}

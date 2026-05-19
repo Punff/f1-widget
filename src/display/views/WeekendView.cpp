@@ -38,7 +38,10 @@ int WeekendView::dataSize() const {
 void WeekendView::drawHeader() {
     _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
 
-    if (!_meeting) return;
+    if (!_meeting) {
+        _dm->header()->redrawEncoder();
+        return;
+    }
 
     char roundStr[8];
     snprintf(roundStr, sizeof(roundStr), "R%02d", _meeting->round);
@@ -51,13 +54,15 @@ void WeekendView::drawHeader() {
     _tft->setFont(UI::Fonts::BODY_MAIN);
     char nameBuf[48];
     strlcpy(nameBuf, _meeting->officialName, sizeof(nameBuf));
-    _tft->drawString(nameBuf, 70, 12);
+    _tft->drawString(nameBuf, 95, 12);
 
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
-    _tft->drawString(_meeting->circuit.shortName, 70, 32);
+    _tft->drawString(_meeting->circuit.shortName, 95, 32);
 
     _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
+
+    _dm->header()->redrawEncoder();
 }
 
 void WeekendView::drawRow(int dataIdx, bool selected, int dist) {
@@ -141,15 +146,11 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist) {
 }
 
 void WeekendView::drawFooter() {
-    _tft->fillRect(0, UI::SCREEN_H - UI::FOOTER_H, UI::SCREEN_W, UI::FOOTER_H, UI::COL_BG);
-    _tft->drawFastHLine(0, UI::SCREEN_H - UI::FOOTER_H, UI::SCREEN_W, UI::COL_F1_RED);
+    _dm->footer()->draw();
 
     char footerStr[32];
     snprintf(footerStr, sizeof(footerStr), "LOCAL TIME  UTC%+d", timeMgr->getUTCOffset());
-    _tft->setTextDatum(middle_center);
-    _tft->setTextColor(UI::COL_MUTED);
-    _tft->setFont(UI::Fonts::LABEL_SMALL);
-    _tft->drawString(footerStr, UI::SCREEN_W/2, UI::SCREEN_H - UI::FOOTER_H/2);
+    _dm->footer()->drawText(footerStr);
 }
 
 void WeekendView::onLongPress() {

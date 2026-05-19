@@ -42,10 +42,6 @@ protected:
     void partialRedraw(int oldCursor);
     void drawSingleRow(int row);
 
-    // Footer optimization
-    void drawFooterText(const char *text, int x, int y, uint32_t color, uint8_t size);
-    char _lastFooterText[64];
-
     // LGFX members
     LGFX *_tft;
     DisplayManager *_dm;

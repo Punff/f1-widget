@@ -53,7 +53,9 @@ void DisplayManager::drawBootStatus(const char *msg)
 }
 
 DisplayManager::DisplayManager(LGFX *tft)
-    : _tft(tft), _currentView(nullptr), _menuView(nullptr), _viewRegistry{}
+    : _tft(tft), _header(nullptr), _footer(nullptr),
+      _currentView(nullptr), _previousView(nullptr),
+      _menuView(nullptr), _viewRegistry{}
 {
     _sharedRowSprite = new LGFX_Sprite(_tft);
     // Fixed size — never reallocated. All views use same MAX_ROW_H.
@@ -61,6 +63,8 @@ DisplayManager::DisplayManager(LGFX *tft)
     if (!_sharedRowSprite->createSprite(UI::SCREEN_W, UI::MAX_ROW_H)) {
         Serial.println("[ERROR] Shared row sprite allocation failed");
     }
+    _header = new Header(_tft);
+    _footer = new Footer(_tft);
 }
 
 void DisplayManager::init(IView *menuView)
@@ -81,6 +85,12 @@ void DisplayManager::setView(IView *view)
     if (_currentView)
         _currentView->onExit();
 
+    // Clean up WeekendView when navigating away from it
+    if (_currentView == _weekendView) {
+        delete _weekendView;
+        _weekendView = nullptr;
+    }
+
     _currentView = view;
 
     // Clean sweep instead of partial clears
@@ -92,37 +102,45 @@ void DisplayManager::setView(IView *view)
 
 void DisplayManager::returnToMenu()
 {
-    if (_weekendView) {
-        delete _weekendView;
-        _weekendView = nullptr;
-    }
     setView(_menuView);
 }
 
 IView *DisplayManager::currentView() const { return _currentView; }
 
-// ── Input Handlers (Forwarding directly to view) ─────────────────────────────
+// ── Input Handlers ─────────────────────────────────────────────────────────
 
 void DisplayManager::onTurnRight()
 {
+    if (_header) _header->encoderPulse(1);
     if (_currentView)
         _currentView->onTurnRight();
 }
 void DisplayManager::onTurnLeft()
 {
+    if (_header) _header->encoderPulse(-1);
     if (_currentView)
         _currentView->onTurnLeft();
 }
 void DisplayManager::onPress()
 {
+    if (_header) _header->encoderPress();
     if (_currentView)
         _currentView->onPress();
 }
-void DisplayManager::onLongPress() { returnToMenu(); }
+void DisplayManager::onLongPress()
+{
+    if (_header) _header->encoderLongPress();
+    returnToMenu();
+}
 void DisplayManager::onDoublePress()
 {
-    if (_currentView)
-        _currentView->onDoublePress();
+    // Go back to previous view (WeekendView → CalendarView),
+    // but never to MenuView (menu is long-press only).
+    if (_previousView && _previousView != _currentView && _previousView != _menuView) {
+        IView *target = _previousView;
+        _previousView = nullptr;
+        setView(target);
+    }
 }
 
 void DisplayManager::registerView(MenuItem item, IView *view)
@@ -134,17 +152,22 @@ void DisplayManager::registerView(MenuItem item, IView *view)
 
 void DisplayManager::launchMenuItem(int menuIndex)
 {
-    if (menuIndex >= 0 && menuIndex < REGISTRY_SIZE && _viewRegistry[menuIndex])
+    if (menuIndex >= 0 && menuIndex < REGISTRY_SIZE && _viewRegistry[menuIndex]) {
+        _previousView = _currentView;
         setView(_viewRegistry[menuIndex]);
+    }
 }
 
 void DisplayManager::launchWeekendView(const RaceMeeting *meeting) {
     if (_weekendView) {
         delete _weekendView;
     }
+    _previousView = _currentView;
     _weekendView = new WeekendView(_tft, this, meeting);
     setView(_weekendView);
 }
 
 LGFX *DisplayManager::tft() const { return _tft; }
 LGFX_Sprite *DisplayManager::rowSprite() const { return _sharedRowSprite; }
+Header *DisplayManager::header() const { return _header; }
+Footer *DisplayManager::footer() const { return _footer; }
