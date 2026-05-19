@@ -6,49 +6,59 @@ void DisplayManager::drawSplash()
 {
     _tft->fillScreen(UI::COL_BG);
 
-    // LittleFS should already be mounted in main.cpp
-    const char *path = "/F1-Logo-PNG-Cutout.png";
-
-    if (LittleFS.exists(path))
+    // Load PNG into memory, then draw centered (LGFX has no fs::File DataWrapper)
+    File f = LittleFS.open("/F1-Logo-PNG-Cutout.png", "r");
+    if (f)
     {
-        File f = LittleFS.open(path, "r");
-        if (f)
+        size_t sz = (size_t)f.size();
+        uint8_t *buf = (uint8_t *)malloc(sz);
+        if (buf)
         {
-            // drawPng returns true on success
-            if (_tft->drawPng(&f, (size_t)f.size(), 0, 0))
+            if ((size_t)f.read(buf, sz) == sz)
             {
-                f.close();
-                return;
+                _tft->drawPng(buf, sz, 144, 64);
             }
+            free(buf);
             f.close();
+            return;
         }
-    }
-    else
-    {
-        Serial.printf("[SPLASH] %s not found on LittleFS\n", path);
+        f.close();
     }
 
-    // Fallback: Draw F1 text logo
+    // Text fallback centered on screen
     _tft->setTextDatum(middle_center);
     _tft->setTextColor(UI::COL_F1_RED);
-    _tft->setFont(&fonts::Font8);
-    _tft->drawString("F1", 240, 140);
-    
+    _tft->setFont(UI::Fonts::HEADER_BIG);
+    _tft->drawString("F1", UI::SCREEN_W / 2, 140);
+
     _tft->setTextColor(UI::COL_TEXT);
-    _tft->setFont(&fonts::Font2);
-    _tft->drawString("WIDGET", 240, 180);
-    
+    _tft->setFont(UI::Fonts::BODY_MAIN);
+    _tft->drawString("WIDGET", UI::SCREEN_W / 2, 170);
+
     _tft->setTextColor(UI::COL_MUTED);
-    _tft->setFont(&fonts::Font0);
-    _tft->drawString("2026 Season", 240, 210);
+    _tft->setFont(UI::Fonts::LABEL_SMALL);
+    _tft->drawString("2026 Season", UI::SCREEN_W / 2, 200);
+}
+
+void DisplayManager::drawBootStatus(const char *msg)
+{
+    _tft->fillRect(0, 260, UI::SCREEN_W, 50, UI::COL_BG);
+    _tft->setTextDatum(middle_center);
+    _tft->setTextColor(UI::COL_TEXT);
+    _tft->setFont(UI::Fonts::BODY_MAIN);
+    _tft->drawString(msg, UI::SCREEN_W / 2, 285);
+
+    // Also output to serial for debugging
+    Serial.printf("[BOOT] %s\n", msg);
 }
 
 DisplayManager::DisplayManager(LGFX *tft)
     : _tft(tft), _currentView(nullptr), _menuView(nullptr), _viewRegistry{}
 {
     _sharedRowSprite = new LGFX_Sprite(_tft);
-    // Max row height is ~50px. 480x50x2 = 48000 bytes.
-    if (!_sharedRowSprite->createSprite(UI::SCREEN_W, 50)) {
+    // Fixed size — never reallocated. All views use same MAX_ROW_H.
+    // This prevents heap fragmentation from views with different row heights.
+    if (!_sharedRowSprite->createSprite(UI::SCREEN_W, UI::MAX_ROW_H)) {
         Serial.println("[ERROR] Shared row sprite allocation failed");
     }
 }

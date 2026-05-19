@@ -14,18 +14,17 @@ struct Team
 {
     char id[32];
     char name[64];
-    uint16_t teamColor; // Pre-calculated RGB565 from OpenF1 "team_colour"
+    uint16_t teamColor;
 };
 
 struct Driver
 {
     int number;
-    char firstName[32];
-    char lastName[32];
-    char fullName[64];
-    char broadcastName[32];
+    char firstName[16];
+    char lastName[24];
+    char fullName[48];
+    char broadcastName[24];
     char acronym[4];
-    char headshotUrl[128];
     Team team;
 };
 
@@ -46,12 +45,9 @@ struct ConstructorStanding
 
 struct Circuit
 {
-    int circuitKey;
-    char shortName[64];
-    char location[64];
-    char countryName[32];
-    char countryCode[4];
-    char trackImageUrl[128];
+    char shortName[48];
+    char location[48];
+    char countryName[24];
 };
 
 struct Session
@@ -63,10 +59,8 @@ struct Session
 struct RaceMeeting
 {
     int round;
-    int meetingKey; // From OpenF1
-    char officialName[128];
-    char dateStart[32];
-    char dateEnd[32];
+    int meetingKey;
+    char officialName[96];
     char date[12];
     Circuit circuit;
     Session sessions[6];

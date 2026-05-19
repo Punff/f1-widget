@@ -36,21 +36,15 @@ protected:
     int _rowsVisible;
     int _centerRow;
 
-    // Row brightness
-    float rowBrightness(int dist) const;
-
     // Draw helpers
     void updateScrollOffset();
     void fullRedraw();
-    void partialRedraw(int oldCursor);  // Only redraw changed rows
-    void drawSingleRow(int row);  // Draw a single row
+    void partialRedraw(int oldCursor);
+    void drawSingleRow(int row);
 
     // Footer optimization
     void drawFooterText(const char *text, int x, int y, uint32_t color, uint8_t size);
     char _lastFooterText[64];
-    bool _footerTextChanged(const char *newText);
-
-    uint32_t dimCol(uint32_t col, float brightness) const;
 
     // LGFX members
     LGFX *_tft;

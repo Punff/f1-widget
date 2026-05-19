@@ -1,5 +1,6 @@
 #include "NewsView.h"
 #include "../DisplayManager.h"
+#include "../../../include/UI_Fonts.h"
 
 NewsView::NewsView(LGFX *tft, DisplayManager *dm)
     : _tft(tft), _dm(dm) {}
@@ -11,37 +12,36 @@ void NewsView::onEnter()
     drawNewsContent();
 }
 
-void NewsView::render()
-{
-    // Static view, no updates needed
-}
+void NewsView::render() {}
+
+void NewsView::onLongPress() { _dm->returnToMenu(); }
 
 void NewsView::drawNewsHeader()
 {
     _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
 
-    // Title
     _tft->setTextDatum(top_left);
     _tft->setTextColor(UI::COL_F1_RED);
-    _tft->setTextSize(2);
+    _tft->setFont(UI::Fonts::HEADER_BIG);
     _tft->drawString("F1", 10, 8);
 
     _tft->setTextColor(UI::COL_TEXT);
-    _tft->drawString("LATEST NEWS", 60, 10);
+    _tft->setFont(UI::Fonts::BODY_MAIN);
+    _tft->drawString("LATEST NEWS", 75, 12);
 
-    // Red separator
     _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
 }
 
 void NewsView::drawNewsContent()
 {
-    // Placeholder content
     _tft->setTextDatum(middle_center);
     _tft->setTextColor(UI::COL_TEXT_DIM);
-    _tft->setTextSize(1);
+    _tft->setFont(UI::Fonts::BODY_MAIN);
 
-    int centerY = UI::HEADER_H + (UI::CONTENT_H / 2);
+    int cy = UI::HEADER_H + (UI::CONTENT_H / 2);
+    _tft->drawString("News Feed Coming Soon", UI::SCREEN_W / 2, cy - 20);
 
-    _tft->drawString("News Feed Coming Soon", UI::SCREEN_W / 2, centerY - 20);
-    _tft->drawString("Stay tuned for F1 updates!", UI::SCREEN_W / 2, centerY + 20);
+    _tft->setFont(UI::Fonts::LABEL_SMALL);
+    _tft->setTextColor(UI::COL_MUTED);
+    _tft->drawString("Long press to return", UI::SCREEN_W / 2, cy + 20);
 }

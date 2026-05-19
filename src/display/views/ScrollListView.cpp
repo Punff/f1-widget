@@ -18,15 +18,8 @@ ScrollListView::~ScrollListView()
 void ScrollListView::onEnter()
 {
     _rowSprite = _dm->rowSprite();
-    if (_rowSprite) {
-        _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-        _rowSprite->deleteSprite();
-        _rowSprite->createSprite(UI::SCREEN_W, _rowH);
-        if (!_rowSprite->getBuffer()) {
-            Serial.println("[SPRITE] Buffer null, retrying...");
-            _rowSprite->deleteSprite();
-            _rowSprite->createSprite(UI::SCREEN_W, _rowH);
-        }
+    if (_rowSprite && !_rowSprite->getBuffer()) {
+        Serial.println("[SPRITE] Buffer null at onEnter");
     }
 
     _tft->fillScreen(UI::COL_BG);
@@ -137,33 +130,6 @@ void ScrollListView::drawSingleRow(int row)
 
     // Push row to screen
     _rowSprite->pushSprite(0, rowY);
-}
-
-float ScrollListView::rowBrightness(int dist) const
-{
-    if (dist <= 0)
-        return 1.0f;
-    float b = 1.0f - (dist * UI::DIM_RATE);
-    return (b < UI::MIN_BRIGHT) ? UI::MIN_BRIGHT : b;
-}
-
-uint32_t ScrollListView::dimCol(uint32_t col, float brightness) const
-{
-    uint8_t r = ((col >> 16) & 0xFF) * brightness;
-    uint8_t g = ((col >> 8) & 0xFF) * brightness;
-    uint8_t b = (col & 0xFF) * brightness;
-    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
-}
-
-bool ScrollListView::_footerTextChanged(const char *newText)
-{
-    if (strcmp(_lastFooterText, newText) == 0)
-    {
-        return false; // Same text, no change
-    }
-    strncpy(_lastFooterText, newText, sizeof(_lastFooterText) - 1);
-    _lastFooterText[sizeof(_lastFooterText) - 1] = '\0';
-    return true; // Text changed
 }
 
 void ScrollListView::drawFooterText(const char *text, int x, int y, uint32_t color, uint8_t size)

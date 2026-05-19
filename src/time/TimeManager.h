@@ -9,6 +9,8 @@ public:
     time_t getUTCTime() const;
     time_t getLocalTime() const;
     int getUTCOffset() const { return _utcOffset; }
+    void setUTCOffset(int offset) { _utcOffset = offset; }
+    bool isSynced() const { return _baseUtcTime > 100000; }
 
 private:
     int _utcOffset;

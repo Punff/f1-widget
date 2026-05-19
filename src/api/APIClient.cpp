@@ -228,10 +228,4 @@ bool APIClient::syncCalendar()
     return true;
 }
 
-String APIClient::_httpGet(String url)
-{
-    HTTPClient http;
-    http.begin(url);
-    if (http.GET() == HTTP_CODE_OK) return http.getString();
-    return "";
-}
+

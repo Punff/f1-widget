@@ -13,6 +13,7 @@ public:
 
     void init(IView *menuView);
     void drawSplash();
+    void drawBootStatus(const char *msg);
     void loop();
 
     void setView(IView *view);

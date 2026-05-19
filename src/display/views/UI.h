@@ -52,6 +52,9 @@ namespace UI
     static constexpr float DIM_RATE = 0.22f;    // Brightness drop per row
     static constexpr float MIN_BRIGHT = 0.15f;  // Never fully black
 
+    // Shared sprite max row height — all views use same size to prevent heap fragmentation
+    static constexpr int MAX_ROW_H = 50;
+
     // Encoder visual feedback (subtle)
     static constexpr int ENCODER_PULSE_MS = 30;           // Shorter, subtle flash
     static constexpr uint32_t ENCODER_FLASH_COL = 0x6800; // Dark red, subtle

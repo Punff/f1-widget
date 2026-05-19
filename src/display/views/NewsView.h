@@ -18,7 +18,7 @@ public:
     void onTurnRight() override {}
     void onTurnLeft() override {}
     void onPress() override {}
-    void onLongPress() override {}
+    void onLongPress() override;
     void onDoublePress() override {}
 
 private:

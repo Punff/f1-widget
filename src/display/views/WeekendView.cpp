@@ -49,7 +49,9 @@ void WeekendView::drawHeader() {
 
     _tft->setTextColor(UI::COL_TEXT);
     _tft->setFont(UI::Fonts::BODY_MAIN);
-    _tft->drawString(_meeting->officialName, 70, 12);
+    char nameBuf[48];
+    strlcpy(nameBuf, _meeting->officialName, sizeof(nameBuf));
+    _tft->drawString(nameBuf, 70, 12);
 
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
