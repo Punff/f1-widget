@@ -6,35 +6,22 @@ ScrollListView::ScrollListView(LGFX *tft, DisplayManager *dm, int rowH, int rows
     : _tft(tft), _dm(dm), _cursor(0), _scrollOffset(0),
       _rowH(rowH), _rowsVisible(rowsVisible), _centerRow(centerRow)
 {
-    _rowSprite = new LGFX_Sprite(_tft);
     _lastFooterText[0] = '\0';
+    _rowSprite = nullptr; // Will get from DisplayManager
 }
 
 ScrollListView::~ScrollListView()
 {
-    if (_rowSprite)
-    {
-        _rowSprite->deleteSprite();
-        delete _rowSprite;
-    }
+    // Do not delete shared sprite
 }
 
 void ScrollListView::onEnter()
 {
-    _cursor = 0;
-    
-    Serial.printf("[MEM] Free: %u, Min: %u, Int: %u\n", 
-        ESP.getFreeHeap(), ESP.getMinFreeHeap(), esp_get_free_internal_heap_size());
-
-    // Allocate sprite buffer only when view is active
-    if (!_rowSprite->getBuffer())
-    {
-        if (!_rowSprite->createSprite(UI::SAFE_W, _rowH))
-        {
-            Serial.println("[ERROR] Failed to create row sprite!");
-        }
+    _rowSprite = _dm->rowSprite();
+    if (_rowSprite) {
+        _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+        _rowSprite->createSprite(UI::SCREEN_W, _rowH);
     }
-    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
 
     _tft->fillScreen(UI::COL_BG);
     fullRedraw();
@@ -42,11 +29,7 @@ void ScrollListView::onEnter()
 
 void ScrollListView::onExit()
 {
-    // Free sprite buffer when leaving view
-    if (_rowSprite)
-    {
-        _rowSprite->deleteSprite();
-    }
+    // Nothing to do for shared sprite
 }
 
 void ScrollListView::render()
@@ -94,82 +77,47 @@ void ScrollListView::fullRedraw()
 {
     updateScrollOffset();
 
-    _tft->startWrite();
-
-    // Draw header
     drawHeader();
 
-    // Draw all rows
     for (int row = 0; row < _rowsVisible; row++)
-    {
         drawSingleRow(row);
-    }
 
-    // Red separator line above footer
     _tft->drawFastHLine(0, UI::FOOTER_Y - 1, UI::SCREEN_W, UI::COL_F1_RED);
-
-    // Draw footer
     drawFooter();
-
-    _tft->endWrite();
 }
 
 void ScrollListView::partialRedraw(int oldCursor)
 {
-    // Calculate new scroll offset
-    int newScrollOffset = _cursor - _centerRow;
+    int oldOffset = _scrollOffset;
+    updateScrollOffset();
 
-    // Check if scroll offset changed (data shifted)
-    if (newScrollOffset != _scrollOffset)
+    if (oldOffset != _scrollOffset)
     {
-        // Data shifted - redraw only rows and footer, NOT header
-        _scrollOffset = newScrollOffset;
-
-        _tft->startWrite();
-
-        // Redraw all rows (data shifted)
         for (int row = 0; row < _rowsVisible; row++)
-        {
             drawSingleRow(row);
-        }
-
-        // Redraw footer
         drawFooter();
-
-        _tft->endWrite();
         return;
     }
 
-    // Scroll offset didn't change - only selection moved
-    // Calculate which rows changed: old selected and new selected
-    int oldSelectedRow = _centerRow + (oldCursor - _scrollOffset);
-    int newSelectedRow = _centerRow; // New cursor is at center
+    int oldRow = oldCursor - _scrollOffset;
+    if (oldRow >= 0 && oldRow < _rowsVisible)
+        drawSingleRow(oldRow);
 
-    _tft->startWrite();
+    int newRow = _cursor - _scrollOffset;
+    if (newRow >= 0 && newRow < _rowsVisible)
+        drawSingleRow(newRow);
 
-    // Redraw old selected row (now unselected)
-    if (oldSelectedRow >= 0 && oldSelectedRow < _rowsVisible)
-    {
-        drawSingleRow(oldSelectedRow);
-    }
-
-    // Redraw new selected row (now selected)
-    drawSingleRow(newSelectedRow);
-
-    // UPDATE FOOTER (selection changed)
     drawFooter();
-
-    _tft->endWrite();
 }
 
 void ScrollListView::drawSingleRow(int row)
 {
-    if (!_rowSprite->getBuffer())
+    if (!_rowSprite || !_rowSprite->getBuffer())
         return;
 
     int dataIdx = _scrollOffset + row;
-    bool selected = (row == _centerRow);
-    int dist = abs(row - _centerRow);
+    bool selected = (dataIdx == _cursor);
+    int dist = abs(dataIdx - _cursor);
     int rowY = UI::HEADER_H + (row * _rowH);
 
     // Clear sprite to black first

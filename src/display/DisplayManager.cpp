@@ -46,6 +46,11 @@ void DisplayManager::drawSplash()
 DisplayManager::DisplayManager(LGFX *tft)
     : _tft(tft), _currentView(nullptr), _menuView(nullptr), _viewRegistry{}
 {
+    _sharedRowSprite = new LGFX_Sprite(_tft);
+    // Max row height is ~50px. 480x50x2 = 48000 bytes.
+    if (!_sharedRowSprite->createSprite(UI::SCREEN_W, 50)) {
+        Serial.println("[ERROR] Shared row sprite allocation failed");
+    }
 }
 
 void DisplayManager::init(IView *menuView)
@@ -132,3 +137,4 @@ void DisplayManager::launchWeekendView(const RaceMeeting *meeting) {
 }
 
 LGFX *DisplayManager::tft() const { return _tft; }
+LGFX_Sprite *DisplayManager::rowSprite() const { return _sharedRowSprite; }

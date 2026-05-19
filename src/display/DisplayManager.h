@@ -31,11 +31,13 @@ public:
     void launchWeekendView(const RaceMeeting *meeting);
 
     LGFX *tft() const;
+    LGFX_Sprite *rowSprite() const;
 
 private:
     static constexpr int REGISTRY_SIZE = static_cast<int>(MenuItem::COUNT);
 
     LGFX *_tft;
+    LGFX_Sprite *_sharedRowSprite;
     IView *_currentView;
     IView *_menuView;
     IView *_viewRegistry[REGISTRY_SIZE];
