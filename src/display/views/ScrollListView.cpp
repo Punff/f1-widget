@@ -7,11 +7,7 @@ ScrollListView::ScrollListView(LGFX *tft, DisplayManager *dm, int rowH, int rows
       _rowH(rowH), _rowsVisible(rowsVisible), _centerRow(centerRow)
 {
     _rowSprite = new LGFX_Sprite(_tft);
-    _rowSprite->createSprite(UI::SAFE_W, _rowH);
-    _lastFooterText[0] = '\0'; // Initialize empty
-
-    // Set the "Global" default font for all list items here
-    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+    _lastFooterText[0] = '\0';
 }
 
 ScrollListView::~ScrollListView()
@@ -26,8 +22,31 @@ ScrollListView::~ScrollListView()
 void ScrollListView::onEnter()
 {
     _cursor = 0;
+    
+    Serial.printf("[MEM] Free: %u, Min: %u, Int: %u\n", 
+        ESP.getFreeHeap(), ESP.getMinFreeHeap(), esp_get_free_internal_heap_size());
+
+    // Allocate sprite buffer only when view is active
+    if (!_rowSprite->getBuffer())
+    {
+        if (!_rowSprite->createSprite(UI::SAFE_W, _rowH))
+        {
+            Serial.println("[ERROR] Failed to create row sprite!");
+        }
+    }
+    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+
     _tft->fillScreen(UI::COL_BG);
     fullRedraw();
+}
+
+void ScrollListView::onExit()
+{
+    // Free sprite buffer when leaving view
+    if (_rowSprite)
+    {
+        _rowSprite->deleteSprite();
+    }
 }
 
 void ScrollListView::render()
@@ -141,15 +160,13 @@ void ScrollListView::partialRedraw(int oldCursor)
     drawFooter();
 
     _tft->endWrite();
-
-    // Draw footer
-    drawFooter();
-
-    _tft->endWrite();
 }
 
 void ScrollListView::drawSingleRow(int row)
 {
+    if (!_rowSprite->getBuffer())
+        return;
+
     int dataIdx = _scrollOffset + row;
     bool selected = (row == _centerRow);
     int dist = abs(row - _centerRow);
@@ -158,24 +175,10 @@ void ScrollListView::drawSingleRow(int row)
     // Clear sprite to black first
     _rowSprite->fillSprite(UI::COL_BG);
 
-    // Debug: print sprite info
-    static int dbg = 0;
-    if (dbg < 3) {
-        Serial.printf("[SPRITE] w=%d, h=%d, ready=%d\n", 
-            _rowSprite->width(), _rowSprite->height(), _rowSprite->getBuffer() ? 1 : 0);
-        dbg++;
-    }
-
     // Draw row content
     if (dataIdx >= 0 && dataIdx < dataSize())
     {
         drawRow(dataIdx, selected, dist);
-    }
-
-    // Debug: check what's in the sprite after drawing
-    if (row == 0 && dbg < 5) {
-        Serial.printf("[PUSH] row=%d, dataIdx=%d, y=%d, selected=%d\n", 
-            row, dataIdx, rowY, selected);
     }
 
     // Push row to screen

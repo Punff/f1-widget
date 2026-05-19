@@ -13,7 +13,7 @@ public:
 
     // Lifecycle
     void onEnter() override;
-    void onExit() override {}
+    void onExit() override;
     void render() override;
     void tick() override {}
 
