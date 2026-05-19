@@ -47,53 +47,32 @@ void ConstructorStandingsView::drawHeader()
 
 void ConstructorStandingsView::drawRow(int dataIdx, bool selected, int dist)
 {
+    (void)dist;
     if (dataIdx < 0 || dataIdx >= (int)cache->constructorStandings.size()) return;
     const auto &cs = cache->constructorStandings[dataIdx];
+    uint16_t tc = cs.team.teamColor;
 
-    // Calculate colors
-    float brightness = rowBrightness(dist);
-    uint32_t textCol = selected ? UI::COL_TEXT : dimCol(UI::COL_TEXT, brightness);
-    uint32_t teamCol = selected ? cs.team.teamColor : dimCol(cs.team.teamColor, brightness);
+    // Team color bar on left (always full brightness)
+    _rowSprite->fillRect(0, 0, 4, _rowH, tc);
 
-    // Team color bar on left
-    _rowSprite->fillRect(0, 0, 4, _rowH, cs.team.teamColor);
-
-    // Selection background
     if (selected) {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
-        _rowSprite->fillRect(UI::SAFE_W - 4, 0, 4, _rowH, cs.team.teamColor);
+        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, tc);
     }
 
     // Position
     _rowSprite->setTextDatum(middle_left);
-    if (selected) {
-        _rowSprite->setFont(UI::Fonts::DATA_ACCENT);
-        _rowSprite->setTextColor(cs.team.teamColor);
-    } else {
-        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-        _rowSprite->setTextColor(textCol);
-    }
+    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+    _rowSprite->setTextColor(UI::COL_TEXT);
     _rowSprite->drawNumber(cs.position, COL_POS, _rowH / 2);
 
     // Team name
-    if (selected) {
-        _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-        _rowSprite->setTextColor(UI::COL_TEXT);
-    } else {
-        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-        _rowSprite->setTextColor(textCol);
-    }
     _rowSprite->drawString(cs.team.name, COL_NAME, _rowH / 2);
 
-    // Points (right-aligned)
+    // Points
     _rowSprite->setTextDatum(middle_right);
-    if (selected) {
-        _rowSprite->setFont(UI::Fonts::DATA_ACCENT);
-        _rowSprite->setTextColor(teamCol);
-    } else {
-        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-        _rowSprite->setTextColor(textCol);
-    }
+    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+    _rowSprite->setTextColor(UI::COL_TEXT);
     _rowSprite->drawNumber(cs.points, COL_PTS, _rowH / 2);
 }
 

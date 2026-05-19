@@ -49,49 +49,37 @@ void DriverStandingsView::drawHeader()
 
 void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
 {
+    (void)dist;
     if (dataIdx < 0 || dataIdx >= (int)cache->driverStandings.size()) return;
     const auto &ds = cache->driverStandings[dataIdx];
+    uint16_t tc = ds.driver.team.teamColor;
 
-    float brightness = rowBrightness(dist);
-    uint32_t textCol = selected ? UI::COL_TEXT : dimCol(UI::COL_TEXT, brightness);
-    uint32_t dimTextCol = selected ? UI::COL_TEXT_DIM : dimCol(UI::COL_TEXT_DIM, brightness);
-    uint32_t teamCol = ds.driver.team.teamColor;
-    if (!selected) teamCol = dimCol(teamCol, brightness);
-
-    // Team color bar
-    _rowSprite->fillRect(0, 0, 4, _rowH, ds.driver.team.teamColor);
+    // Team color bar on left (always full brightness)
+    _rowSprite->fillRect(0, 0, 4, _rowH, tc);
 
     if (selected) {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
-        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, ds.driver.team.teamColor);
+        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, tc);
     }
 
     // Position
     _rowSprite->setTextDatum(middle_left);
-    _rowSprite->setFont(selected ? UI::Fonts::DATA_ACCENT : UI::Fonts::LABEL_SMALL);
-    _rowSprite->setTextColor(selected ? teamCol : textCol);
+    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+    _rowSprite->setTextColor(UI::COL_TEXT);
     _rowSprite->drawNumber(ds.position, COL_POS, _rowH / 2);
 
-    // Driver Name: Full name if selected, acronym if not
-    _rowSprite->setTextColor(UI::COL_TEXT);
-    if (selected) {
-        _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-        _rowSprite->drawString(ds.driver.lastName, COL_NAME, _rowH / 2);
-    } else {
-        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-        _rowSprite->setTextColor(textCol);
-        _rowSprite->drawString(ds.driver.acronym, COL_NAME, _rowH / 2);
-    }
+    // Driver acronym
+    _rowSprite->drawString(ds.driver.acronym, COL_NAME, _rowH / 2);
 
-    // Team (Subtle)
+    // Team name (dimmed)
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-    _rowSprite->setTextColor(dimTextCol);
+    _rowSprite->setTextColor(UI::COL_TEXT_DIM);
     _rowSprite->drawString(ds.driver.team.name, COL_TEAM, _rowH / 2);
 
     // Points
     _rowSprite->setTextDatum(middle_right);
-    _rowSprite->setFont(selected ? UI::Fonts::DATA_ACCENT : UI::Fonts::LABEL_SMALL);
-    _rowSprite->setTextColor(selected ? teamCol : textCol);
+    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+    _rowSprite->setTextColor(UI::COL_TEXT);
     _rowSprite->drawNumber(ds.points, COL_PTS, _rowH / 2);
 }
 

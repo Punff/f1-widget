@@ -20,7 +20,13 @@ void ScrollListView::onEnter()
     _rowSprite = _dm->rowSprite();
     if (_rowSprite) {
         _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+        _rowSprite->deleteSprite();
         _rowSprite->createSprite(UI::SCREEN_W, _rowH);
+        if (!_rowSprite->getBuffer()) {
+            Serial.println("[SPRITE] Buffer null, retrying...");
+            _rowSprite->deleteSprite();
+            _rowSprite->createSprite(UI::SCREEN_W, _rowH);
+        }
     }
 
     _tft->fillScreen(UI::COL_BG);
