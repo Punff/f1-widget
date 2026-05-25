@@ -18,7 +18,7 @@ public:
 private:
     LGFX *_tft;
     uint32_t _glowColor;
-    d unsigned long _glowMs;
+    unsigned long _glowMs;
 
     void drawEncoderArc();
 
