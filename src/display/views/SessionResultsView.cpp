@@ -79,7 +79,7 @@ void SessionResultsView::drawHeader()
 
     _tft->setTextColor(UI::COL_TEXT);
     _tft->setFont(UI::Fonts::BODY_MAIN);
-    _tft->drawString(_sessionName, 105, 8);
+    _tft->drawString(_sessionName, 95, 12);
 
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
@@ -90,9 +90,7 @@ void SessionResultsView::drawHeader()
     _tft->drawString("TIME", COL_TIME, 33);
     _tft->drawString("PTS", COL_PTS, 33);
 
-    _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
-
-    _dm->header()->redrawEncoder();
+    _tft->fillRect(0, UI::HEADER_H - 2, UI::SCREEN_W, 2, UI::COL_F1_RED);
 }
 
 void SessionResultsView::drawRow(int dataIdx, bool selected, int dist)
@@ -166,30 +164,40 @@ void SessionResultsView::drawFooter()
     const auto &leader = _results[0];
     int gap = leader.points - sel.points;
 
-    char buf[64];
+    char buf[48];
     uint32_t color;
     if (_cursor == 0)
     {
         color = 0x4208;
-        const char *winnerName = "";
+        const char *winnerCode = "";
         for (const auto &ds : cache->driverStandings)
         {
             if (strcmp(ds.driver.acronym, leader.driverCode) == 0)
             {
-                winnerName = ds.driver.fullName;
+                winnerCode = ds.driver.acronym;
                 color = ds.driver.team.teamColor;
                 break;
             }
         }
-        snprintf(buf, sizeof(buf), "WINNER: %s", winnerName);
+        snprintf(buf, sizeof(buf), "SR \xc2\xb7 P1: %s", winnerCode);
     }
     else
     {
         color = UI::COL_TEXT_DIM;
-        snprintf(buf, sizeof(buf), "GAP TO P1: +%d PTS", gap);
+        snprintf(buf, sizeof(buf), "SR \xc2\xb7 Gap: +%d", gap);
     }
 
-    _dm->footer()->drawText(buf, color);
+    _dm->footer()->drawCenter(buf, color);
+}
+
+void SessionResultsView::onTurnRight() {
+    ScrollListView::onTurnRight();
+    drawFooter();
+}
+
+void SessionResultsView::onTurnLeft() {
+    ScrollListView::onTurnLeft();
+    drawFooter();
 }
 
 void SessionResultsView::onPress()
@@ -198,5 +206,5 @@ void SessionResultsView::onPress()
 
 void SessionResultsView::onLongPress()
 {
-    _dm->returnToMenu();
+    _dm->returnToPrevious();
 }

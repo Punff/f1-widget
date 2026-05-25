@@ -27,4 +27,5 @@ private:
 
     void drawNewsHeader();
     void drawNewsContent();
+    void drawFooter();
 };

@@ -1,6 +1,10 @@
 #include "DisplayManager.h"
 #include "../../include/LGFX_Config.h"
+#include "../time/TimeManager.h"
+#include <WiFi.h>
 #include <LittleFS.h>
+
+extern TimeManager *timeMgr;
 
 void DisplayManager::drawSplash()
 {
@@ -76,10 +80,23 @@ void DisplayManager::init(IView *menuView)
 
 void DisplayManager::loop()
 {
-    if (_header && _header->encoderActive())
-        _header->redrawEncoder();
+    _header->tick(timeMgr);
+
     if (_currentView)
         _currentView->tick();
+
+    static unsigned long lastWifiCheck = 0;
+    static bool lastWifiOk = false;
+    unsigned long now = millis();
+    if (now - lastWifiCheck >= 1000) {
+        lastWifiCheck = now;
+        bool wifiOk = (WiFi.status() == WL_CONNECTED);
+        if (wifiOk != lastWifiOk) {
+            lastWifiOk = wifiOk;
+            _footer->setWifiConnected(wifiOk);
+            _footer->redrawWifi();
+        }
+    }
 }
 
 void DisplayManager::setView(IView *view)
@@ -99,6 +116,8 @@ void DisplayManager::setView(IView *view)
 
     _currentView = view;
 
+    _header->markDirty();
+
     // Clean sweep instead of partial clears
     _tft->fillScreen(UI::COL_BG);
 
@@ -109,6 +128,28 @@ void DisplayManager::setView(IView *view)
 void DisplayManager::returnToMenu()
 {
     setView(_menuView);
+}
+
+void DisplayManager::returnToPrevious()
+{
+    if (_previousView && _previousView != _currentView && _previousView != _menuView) {
+        IView *target = _previousView;
+        _previousView = nullptr;
+        setView(target);
+        return;
+    }
+    returnToMenu();
+}
+
+void DisplayManager::returnToCalendar()
+{
+    int idx = static_cast<int>(MenuItem::CALENDAR);
+    if (idx >= 0 && idx < REGISTRY_SIZE && _viewRegistry[idx]) {
+        _previousView = _currentView;
+        setView(_viewRegistry[idx]);
+        return;
+    }
+    returnToMenu();
 }
 
 IView *DisplayManager::currentView() const { return _currentView; }
@@ -140,13 +181,7 @@ void DisplayManager::onLongPress()
 }
 void DisplayManager::onDoublePress()
 {
-    // Go back to previous view (WeekendView → CalendarView),
-    // but never to MenuView (menu is long-press only).
-    if (_previousView && _previousView != _currentView && _previousView != _menuView) {
-        IView *target = _previousView;
-        _previousView = nullptr;
-        setView(target);
-    }
+    returnToPrevious();
 }
 
 void DisplayManager::registerView(MenuItem item, IView *view)

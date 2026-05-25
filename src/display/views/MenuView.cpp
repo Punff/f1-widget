@@ -44,10 +44,9 @@ void MenuView::drawRow(int dataIdx, bool selected, int dist)
 void MenuView::drawFooter()
 {
     _dm->footer()->draw();
-    _tft->setFont(UI::Fonts::LABEL_SMALL);
-    _tft->setTextColor(UI::COL_MUTED);
-    _tft->setTextDatum(bottom_right);
-    _tft->drawString("v1.0.26", UI::SCREEN_W - 10, UI::SCREEN_H - 5);
+    char buf[32];
+    snprintf(buf, sizeof(buf), "Heap: %uK", ESP.getFreeHeap() / 1024);
+    _dm->footer()->drawCenter(buf, UI::COL_MUTED);
 }
 
 void MenuView::onPress()

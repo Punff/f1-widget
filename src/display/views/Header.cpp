@@ -2,68 +2,121 @@
 #include "UI.h"
 #include "../../../include/UI_Fonts.h"
 #include "../../../include/LGFX_Config.h"
+#include "../../time/TimeManager.h"
 
 Header::Header(LGFX *tft)
-    : _tft(tft), _glowColor(0), _glowMs(0) {}
+    : _tft(tft), _glowColor(0), _glowMs(0), _lastClockMin(-1) {}
 
-void Header::draw(const char *title, const char *subtitle) {
+void Header::draw(const char *title, const char *subtitle, const char *prefix)
+{
+    if (!prefix)
+        prefix = "F1";
+
     _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
 
     _tft->setTextDatum(top_left);
     _tft->setTextColor(UI::COL_F1_RED);
     _tft->setFont(UI::Fonts::HEADER_BIG);
-    _tft->drawString("F1", 10, 8);
+    _tft->drawString(prefix, 10, 8);
 
     _tft->setTextColor(UI::COL_TEXT);
     _tft->setFont(UI::Fonts::BODY_MAIN);
-    _tft->drawString(title, 75, 12);
+    _tft->drawString(title, 110, 10);
 
-    if (subtitle) {
+    if (subtitle)
+    {
         _tft->setTextColor(UI::COL_MUTED);
         _tft->setFont(UI::Fonts::LABEL_SMALL);
-        _tft->drawString(subtitle, 75, 32);
+        _tft->drawString(subtitle, 110, 32);
     }
 
-    _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
+    _tft->fillRect(0, UI::HEADER_H - 2, UI::SCREEN_W, 2, UI::COL_F1_RED);
 
-    drawEncoderArc();
+    _lastClockMin = -1;
 }
 
-void Header::encoderPulse(int dir) {
-    _glowColor = (dir > 0) ? UI::COL_F1_RED : UI::COL_TEXT;
-    _glowMs = millis();
-    redrawEncoder();
+void Header::tick(TimeManager *tm)
+{
+    drawClock(tm);
+    if (encoderActive())
+        redrawEncoder();
 }
 
-void Header::encoderPress() {
-    _glowColor = UI::COL_F1_YELLOW;
-    _glowMs = millis();
-    redrawEncoder();
+void Header::drawClock(TimeManager *tm)
+{
+    if (!tm || !tm->isSynced())
+        return;
+
+    time_t t = tm->getLocalTime();
+    struct tm lt;
+    localtime_r(&t, &lt);
+
+    if (lt.tm_min == _lastClockMin)
+        return;
+    _lastClockMin = lt.tm_min;
+
+    _tft->fillRect(CLOCK_RX - CLOCK_W, CLOCK_Y, CLOCK_W, CLOCK_H, UI::COL_BG);
+
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%02d:%02d", lt.tm_hour, lt.tm_min);
+    _tft->setTextDatum(top_right);
+    _tft->setTextColor(UI::COL_TEXT);
+    _tft->setFont(UI::Fonts::BODY_MAIN);
+    _tft->drawString(buf, CLOCK_RX, CLOCK_Y);
 }
 
-void Header::encoderLongPress() {
+void Header::encoderPulse(int dir)
+{
     _glowColor = UI::COL_F1_RED;
     _glowMs = millis();
     redrawEncoder();
 }
 
-void Header::redrawEncoder() {
-    drawEncoderArc();
+void Header::encoderPress()
+{
+    _glowColor = UI::COL_F1_YELLOW;
+    _glowMs = millis();
+    redrawEncoder();
 }
 
-bool Header::encoderActive() const {
+void Header::encoderLongPress()
+{
+    _glowColor = UI::COL_F1_RED;
+    _glowMs = millis();
+    redrawEncoder();
+}
+
+void Header::redrawEncoder()
+{
+    drawEncoderDot();
+}
+
+bool Header::encoderActive() const
+{
     return millis() - _glowMs < WHITE_DECAY_MS;
 }
 
-void Header::drawEncoderArc() {
+void Header::markDirty()
+{
+    _lastClockMin = -1;
+}
+
+void Header::drawEncoderDot()
+{
     unsigned long now = millis();
     unsigned long elapsed = now - _glowMs;
 
-    if (elapsed < COLOR_MS) {
-        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, _glowColor);
-    } else if (elapsed < WHITE_DECAY_MS) {
-        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, UI::COL_TEXT);
-    } else {
-        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, 0x444444);
+    if (elapsed < COLOR_MS)
+    {
+        _tft->fillCircle(DOT_X, DOT_Y, DOT_R, _glowColor);
+    }
+    else if (elapsed < WHITE_DECAY_MS)
+    {
+        _tft->fillCircle(DOT_X, DOT_Y, DOT_R, UI::COL_TEXT);
+    }
+    else
+    {
+        _tft->fillCircle(DOT_X, DOT_Y, DOT_R, 0x222222);
+        _tft->drawCircle(DOT_X, DOT_Y, DOT_R + 1, 0x444444);
     }
 }

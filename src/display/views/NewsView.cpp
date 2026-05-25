@@ -10,6 +10,7 @@ void NewsView::onEnter()
     _tft->fillScreen(UI::COL_BG);
     drawNewsHeader();
     drawNewsContent();
+    drawFooter();
 }
 
 void NewsView::render() {}
@@ -33,4 +34,10 @@ void NewsView::drawNewsContent()
     _tft->setFont(UI::Fonts::LABEL_SMALL);
     _tft->setTextColor(UI::COL_MUTED);
     _tft->drawString("Long press to return", UI::SCREEN_W / 2, cy + 20);
+}
+
+void NewsView::drawFooter()
+{
+    _dm->footer()->draw();
+    _dm->footer()->drawCenter("NEW \xc2\xb7 Coming soon", UI::COL_MUTED);
 }

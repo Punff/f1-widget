@@ -2,34 +2,41 @@
 #include <cstdint>
 
 class LGFX;
+class TimeManager;
 
 class Header
 {
 public:
     explicit Header(LGFX *tft);
 
-    void draw(const char *title, const char *subtitle = nullptr);
+    void draw(const char *title, const char *subtitle = nullptr, const char *prefix = nullptr);
+    void tick(TimeManager *tm);
     void encoderPulse(int dir);
     void encoderPress();
     void encoderLongPress();
     void redrawEncoder();
     bool encoderActive() const;
+    void markDirty();
 
 private:
     LGFX *_tft;
     uint32_t _glowColor;
     unsigned long _glowMs;
+    int _lastClockMin;
 
-    void drawEncoderArc();
+    void drawClock(TimeManager *tm);
+    void drawEncoderDot();
 
-    // Quarter-circle in top-right corner, bulging toward (480,0).
-    // Center at (456,24), R=24, arc 0°→90° connects right edge (480,24) to top edge (456,0).
-    static constexpr int ARC_CX = 480;
-    static constexpr int ARC_CY = 0;
-    static constexpr int ARC_RMIN = 18;
-    static constexpr int ARC_RMAX = 21;
-    static constexpr int ARC_START = 90;
-    static constexpr int ARC_END = 270;
-    static constexpr unsigned long COLOR_MS = 80;        // Color burst
-    static constexpr unsigned long WHITE_DECAY_MS = 400; // Decay to dim
+    // Encoder indicator — bottom-right glowing dot
+    static constexpr int DOT_X = 458;
+    static constexpr int DOT_Y = 300;
+    static constexpr int DOT_R = 5;
+    static constexpr unsigned long COLOR_MS = 80;
+    static constexpr unsigned long WHITE_DECAY_MS = 400;
+
+    // Clock — top-right
+    static constexpr int CLOCK_RX = 470;
+    static constexpr int CLOCK_Y = 9;
+    static constexpr int CLOCK_W = 80;
+    static constexpr int CLOCK_H = 22;
 };

@@ -161,6 +161,14 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
     }
 }
 
+void SettingsView::drawFooter()
+{
+    _dm->footer()->draw();
+    char buf[32];
+    snprintf(buf, sizeof(buf), "SET \xc2\xb7 Heap: %uK", ESP.getFreeHeap() / 1024);
+    _dm->footer()->drawCenter(buf, UI::COL_MUTED);
+}
+
 void SettingsView::onPress()
 {
     if (_editing)

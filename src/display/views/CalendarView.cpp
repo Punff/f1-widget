@@ -16,7 +16,7 @@ static constexpr int COL_DATE = 360;
 static constexpr int COL_STATUS = 468;
 
 CalendarView::CalendarView(LGFX *tft, DisplayManager *dm)
-    : ScrollListView(tft, dm, 46, 5, 2)
+    : ScrollListView(tft, dm, 46, 5, 2), _lastFooterSec(0)
 {
 }
 
@@ -103,22 +103,19 @@ void CalendarView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->drawString(rm.circuit.countryName, COL_NAME, _rowH / 2);
 
     // Status
-    const char *status = "DONE";
     uint32_t statusCol = dim;
 
     if (isNext) {
-        status = "NEXT";
-        statusCol = UI::COL_F1_RED;
+        _rowSprite->setTextDatum(middle_right);
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(UI::COL_F1_RED);
+        _rowSprite->drawString("NEXT", COL_STATUS, _rowH / 2);
     } else if (dataIdx > nextRoundIdx && nextRoundIdx != -1) {
-        status = "UPCOMING";
-    } else if (nextRoundIdx == -1) {
-        status = "UPCOMING";
+        _rowSprite->setTextDatum(middle_right);
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(dim);
+        _rowSprite->drawString("UPCOMING", COL_STATUS, _rowH / 2);
     }
-
-    _rowSprite->setTextDatum(middle_right);
-    _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-    _rowSprite->setTextColor(statusCol);
-    _rowSprite->drawString(status, COL_STATUS, _rowH / 2);
 
     // Date
     _rowSprite->setTextColor(dim);
@@ -135,6 +132,63 @@ void CalendarView::onPress()
         _tft->fillRect(0, rowY, UI::SCREEN_W, _rowH, UI::COL_BG_SEL);
         delay(40);
         _dm->launchWeekendView(&cache->calendar[idx]);
+    }
+}
+
+void CalendarView::drawFooter()
+{
+    _dm->footer()->draw();
+
+    if (nextRoundIdx < 0 || nextRoundIdx >= (int)cache->calendar.size()) return;
+
+    const auto &next = cache->calendar[nextRoundIdx];
+    time_t nowLocal = timeMgr->getLocalTime();
+    time_t sessionLocal = 0;
+    if (next.sessionCount > 0) {
+        struct tm st;
+        strptime(next.sessions[0].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
+        sessionLocal = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
+    } else {
+        struct tm rt;
+        strptime(next.date, "%Y-%m-%d", &rt);
+        sessionLocal = mktime(&rt);
+    }
+
+    time_t diff = sessionLocal - nowLocal;
+    if (diff < 0) diff = 0;
+
+    char buf[40];
+    char cd[24];
+    formatCountdown(cd, sizeof(cd), diff);
+    snprintf(buf, sizeof(buf), "CAL \xc2\xb7 %s in %s", next.circuit.countryName, cd);
+    _dm->footer()->drawCenter(buf, UI::COL_MUTED);
+}
+
+void CalendarView::tick()
+{
+    time_t now = timeMgr->getLocalTime();
+    if (now != _lastFooterSec) {
+        _lastFooterSec = now;
+
+        if (nextRoundIdx < 0 || nextRoundIdx >= (int)cache->calendar.size()) return;
+        const auto &next = cache->calendar[nextRoundIdx];
+        time_t sessionLocal = 0;
+        if (next.sessionCount > 0) {
+            struct tm st;
+            strptime(next.sessions[0].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
+            sessionLocal = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
+        } else {
+            struct tm rt;
+            strptime(next.date, "%Y-%m-%d", &rt);
+            sessionLocal = mktime(&rt);
+        }
+        time_t diff = sessionLocal - now;
+        if (diff < 0) diff = 0;
+        char buf[40];
+        char cd[24];
+        formatCountdown(cd, sizeof(cd), diff);
+        snprintf(buf, sizeof(buf), "CAL \xc2\xb7 %s in %s", next.circuit.countryName, cd);
+        _dm->footer()->drawCenter(buf, UI::COL_MUTED);
     }
 }
 

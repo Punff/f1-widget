@@ -31,50 +31,30 @@ int WeekendView::dataSize() const {
 }
 
 void WeekendView::drawHeader() {
-    _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
-
-    if (!_meeting) {
-        _dm->header()->redrawEncoder();
-        return;
-    }
+    if (!_meeting) return;
 
     char roundStr[8];
     snprintf(roundStr, sizeof(roundStr), "R%02d", _meeting->round);
-    _tft->setTextDatum(top_left);
-    _tft->setTextColor(UI::COL_F1_RED);
-    _tft->setFont(UI::Fonts::HEADER_BIG);
-    _tft->drawString(roundStr, 10, 8);
+    _dm->header()->draw(_meeting->officialName, _meeting->circuit.shortName, roundStr);
+}
 
-    _tft->setTextColor(UI::COL_TEXT);
-    _tft->setFont(UI::Fonts::BODY_MAIN);
-    char nameBuf[48];
-    strlcpy(nameBuf, _meeting->officialName, sizeof(nameBuf));
-    _tft->drawString(nameBuf, 95, 12);
-
-    _tft->setTextColor(UI::COL_MUTED);
-    _tft->setFont(UI::Fonts::LABEL_SMALL);
-    _tft->drawString(_meeting->circuit.shortName, 95, 32);
-
-    _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
-
-    _dm->header()->redrawEncoder();
+static const char *sessionAbbrev(const char *name) {
+    if (strcmp(name, "Practice 1") == 0) return "FP1";
+    if (strcmp(name, "Practice 2") == 0) return "FP2";
+    if (strcmp(name, "Practice 3") == 0) return "FP3";
+    if (strcmp(name, "Qualifying") == 0) return "Q";
+    if (strcmp(name, "Sprint") == 0) return "S";
+    if (strcmp(name, "Sprint Qualifying") == 0) return "SQ";
+    if (strcmp(name, "Race") == 0) return "R";
+    return name;
 }
 
 void WeekendView::drawRow(int dataIdx, bool selected, int dist) {
     if (!_meeting) return;
 
-    if (selected) {
-        _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
-        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_F1_RED);
-        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
-    }
-
-    uint32_t dim = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
-
-    // If no sessions, show a placeholder
     if (_meeting->sessionCount == 0) {
         _rowSprite->setTextDatum(middle_center);
-        _rowSprite->setTextColor(dim);
+        _rowSprite->setTextColor(dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
         _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
         _rowSprite->drawString("No session data", UI::SCREEN_W/2, _rowH/2);
         return;
@@ -83,59 +63,79 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist) {
     if (dataIdx < 0 || dataIdx >= _meeting->sessionCount) return;
 
     const Session &s = _meeting->sessions[dataIdx];
-
-    // Check if this is the next upcoming session
-    bool isNextSession = false;
     time_t nowLocal = timeMgr->getLocalTime();
 
+    // Determine session local time and status
     struct tm sessionTm;
     strptime(s.dateUtc, "%Y-%m-%dT%H:%M:%SZ", &sessionTm);
     time_t sessionLocal = my_timegm(&sessionTm) + (timeMgr->getUTCOffset() * 3600);
 
-    if (sessionLocal > nowLocal) {
-        for (int i = 0; i < _meeting->sessionCount; i++) {
-            struct tm st;
-            strptime(_meeting->sessions[i].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
-            time_t sl = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
-            if (sl > nowLocal) {
-                isNextSession = (i == dataIdx);
-                break;
-            }
-        }
+    int nextIdx = -1;
+    for (int i = 0; i < _meeting->sessionCount; i++) {
+        struct tm st;
+        strptime(_meeting->sessions[i].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
+        time_t sl = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
+        if (sl > nowLocal) { nextIdx = i; break; }
     }
 
-    // Day of week
+    bool isPast = (nextIdx == -1 || dataIdx < nextIdx);
+    bool isNext = (dataIdx == nextIdx);
+    bool isFuture = (!isPast && !isNext);
+
+    uint32_t accentCol;
+    uint32_t textCol;
+
+    if (selected) {
+        accentCol = UI::COL_F1_RED;
+        textCol = UI::COL_TEXT;
+    } else if (isNext) {
+        accentCol = UI::COL_F1_RED;
+        textCol = UI::COL_F1_RED;
+    } else if (isFuture) {
+        accentCol = UI::COL_TEXT_DIM;
+        textCol = (dist < 2) ? UI::COL_TEXT_DIM : UI::COL_MUTED;
+    } else {
+        accentCol = 0;
+        textCol = UI::COL_MUTED;
+    }
+
+    if (selected) {
+        _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
+        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_F1_RED);
+        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
+    } else if (isNext) {
+        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_F1_RED);
+    } else if (isFuture) {
+        _rowSprite->fillRect(0, 0, 2, _rowH, 0x444444);
+    }
+
     struct tm localTm;
     localtime_r(&sessionLocal, &localTm);
     char dayStr[8];
     strftime(dayStr, sizeof(dayStr), "%a", &localTm);
     char dateStr[4];
     strftime(dateStr, sizeof(dateStr), "%d", &localTm);
-
-    // Time
     char timeStr[12];
     strftime(timeStr, sizeof(timeStr), "%H:%M", &localTm);
 
-    // Day
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(isNextSession ? UI::COL_F1_RED : dim);
+    _rowSprite->setTextColor(isNext ? UI::COL_F1_RED : textCol);
     _rowSprite->drawString(dayStr, COL_DAY, _rowH / 2 - 6);
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-    _rowSprite->setTextColor(dim);
+    _rowSprite->setTextColor(textCol);
     _rowSprite->drawString(dateStr, COL_DAY, _rowH / 2 + 6);
 
-    // Session name
-    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(dim);
-    _rowSprite->drawString(s.name, COL_NAME, _rowH / 2);
+    _rowSprite->setFont(UI::Fonts::DATA_ACCENT);
+    _rowSprite->setTextColor(isNext ? UI::COL_F1_RED : textCol);
+    _rowSprite->drawString(sessionAbbrev(s.name), COL_NAME, _rowH / 2);
 
-    // Time
     _rowSprite->setTextDatum(middle_right);
-    _rowSprite->setTextColor(dim);
+    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+    _rowSprite->setTextColor(textCol);
     _rowSprite->drawString(timeStr, COL_TIME, _rowH / 2);
 
-    if (isNextSession) {
+    if (isNext) {
         _rowSprite->setTextColor(UI::COL_F1_RED);
         _rowSprite->drawString("NEXT", COL_NEXT, _rowH / 2);
     }
@@ -144,21 +144,70 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist) {
 void WeekendView::drawFooter() {
     _dm->footer()->draw();
 
-    char footerStr[48];
-    time_t t = timeMgr->getLocalTime();
-    struct tm lt;
-    localtime_r(&t, &lt);
-    char timeBuf[12];
-    strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &lt);
-    snprintf(footerStr, sizeof(footerStr), "%s  UTC%+d", timeBuf, timeMgr->getUTCOffset());
-    _dm->footer()->drawText(footerStr);
-    _lastFooterSec = t;
+    if (!_meeting) {
+        _dm->footer()->drawCenter("", 0);
+        return;
+    }
+
+    time_t nowLocal = timeMgr->getLocalTime();
+    time_t nextSessionTime = 0;
+    const char *nextSessionName = nullptr;
+
+    for (int i = 0; i < _meeting->sessionCount; i++) {
+        struct tm st;
+        strptime(_meeting->sessions[i].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
+        time_t sl = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
+        if (sl > nowLocal) {
+            nextSessionTime = sl;
+            nextSessionName = _meeting->sessions[i].name;
+            break;
+        }
+    }
+
+    if (nextSessionName) {
+        time_t diff = nextSessionTime - nowLocal;
+        char cd[24];
+        formatCountdown(cd, sizeof(cd), diff);
+        char buf[48];
+        snprintf(buf, sizeof(buf), "WK \xc2\xb7 %s in %s", nextSessionName, cd);
+        _dm->footer()->drawCenter(buf, UI::COL_MUTED);
+    } else {
+        _dm->footer()->drawCenter("WK \xc2\xb7 Complete", UI::COL_MUTED);
+    }
+    _lastFooterSec = nowLocal;
 }
 
 void WeekendView::tick() {
     time_t now = timeMgr->getLocalTime();
-    if (now != _lastFooterSec) {
-        drawFooter();
+    if (now == _lastFooterSec) return;
+    _lastFooterSec = now;
+
+    if (!_meeting) return;
+
+    // Find next upcoming session and update center text only
+    time_t nextSessionTime = 0;
+    const char *nextSessionName = nullptr;
+
+    for (int i = 0; i < _meeting->sessionCount; i++) {
+        struct tm st;
+        strptime(_meeting->sessions[i].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
+        time_t sl = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
+        if (sl > now) {
+            nextSessionTime = sl;
+            nextSessionName = _meeting->sessions[i].name;
+            break;
+        }
+    }
+
+    if (nextSessionName) {
+        time_t diff = nextSessionTime - now;
+        char cd[24];
+        formatCountdown(cd, sizeof(cd), diff);
+        char buf[48];
+        snprintf(buf, sizeof(buf), "WK \xc2\xb7 %s in %s", nextSessionName, cd);
+        _dm->footer()->drawCenter(buf, UI::COL_MUTED);
+    } else {
+        _dm->footer()->drawCenter("WK \xc2\xb7 Complete", UI::COL_MUTED);
     }
 }
 
@@ -180,5 +229,5 @@ void WeekendView::onPress() {
 }
 
 void WeekendView::onLongPress() {
-    _dm->returnToMenu();
+    _dm->returnToCalendar();
 }

@@ -20,6 +20,7 @@ protected:
     void onEnter() override;
     void drawHeader() override;
     void drawRow(int dataIdx, bool selected, int dist) override;
+    void drawFooter() override;
     void onPress() override;
     void onTurnRight() override;
     void onTurnLeft() override;

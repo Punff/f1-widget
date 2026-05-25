@@ -87,20 +87,30 @@ void DriverStandingsView::drawFooter()
     const auto &leader = cache->driverStandings[0];
     int gap = leader.points - sel.points;
 
-    char buf[64];
+    char buf[48];
     uint32_t color;
     if (_cursor == 0)
     {
         color = sel.driver.team.teamColor;
-        snprintf(buf, sizeof(buf), "LEADER: %s", sel.driver.fullName);
+        snprintf(buf, sizeof(buf), "DS \xc2\xb7 P1: %s", sel.driver.acronym);
     }
     else
     {
         color = UI::COL_TEXT_DIM;
-        snprintf(buf, sizeof(buf), "GAP TO P1: +%d PTS", gap);
+        snprintf(buf, sizeof(buf), "DS \xc2\xb7 Gap: +%d", gap);
     }
 
-    _dm->footer()->drawText(buf, color);
+    _dm->footer()->drawCenter(buf, color);
+}
+
+void DriverStandingsView::onTurnRight() {
+    ScrollListView::onTurnRight();
+    drawFooter();
+}
+
+void DriverStandingsView::onTurnLeft() {
+    ScrollListView::onTurnLeft();
+    drawFooter();
 }
 
 void DriverStandingsView::onLongPress()

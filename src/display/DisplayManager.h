@@ -21,6 +21,8 @@ public:
 
     void setView(IView *view);
     void returnToMenu();
+    void returnToPrevious();
+    void returnToCalendar();
     IView *currentView() const;
 
     // ── Input callbacks ───────────────────────────────────────────────────────
