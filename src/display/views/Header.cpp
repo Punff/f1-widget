@@ -51,17 +51,22 @@ void Header::redrawEncoder() {
     drawEncoderArc();
 }
 
+bool Header::encoderActive() const {
+    return millis() - _glowMs < WHITE_DECAY_MS;
+}
+
 void Header::drawEncoderArc() {
     unsigned long now = millis();
     unsigned long elapsed = now - _glowMs;
 
-    // 1px thin arc = outline. Runs from top edge (456, 0) to right edge (480, 24).
-    if (elapsed < FLASH_MS) {
-        // Brief white flash — makes every input visible
+    if (elapsed < COLOR_MS) {
+        // Phase 1: thick color burst — tactile impact in red/white/yellow
+        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN - 1, ARC_RMAX + 1, ARC_START, ARC_END, _glowColor);
+    } else if (elapsed < WHITE_DECAY_MS) {
+        // Phase 2: settles to thin white — premium glow decay
         _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, UI::COL_TEXT);
-    } else if (elapsed < GLOW_FADE_MS) {
-        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, _glowColor);
     } else {
-        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, UI::COL_MUTED);
+        // Idle: thin white arc
+        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, UI::COL_TEXT);
     }
 }

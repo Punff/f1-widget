@@ -76,6 +76,8 @@ void DisplayManager::init(IView *menuView)
 
 void DisplayManager::loop()
 {
+    if (_header && _header->encoderActive())
+        _header->redrawEncoder();
     if (_currentView)
         _currentView->tick();
 }

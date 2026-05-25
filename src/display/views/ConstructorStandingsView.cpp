@@ -35,10 +35,11 @@ void ConstructorStandingsView::drawHeader()
 
 void ConstructorStandingsView::drawRow(int dataIdx, bool selected, int dist)
 {
-    (void)dist;
     if (dataIdx < 0 || dataIdx >= (int)cache->constructorStandings.size()) return;
     const auto &cs = cache->constructorStandings[dataIdx];
     uint16_t tc = cs.team.teamColor;
+
+    uint32_t nameCol = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
 
     // Team color bar on left (always full brightness)
     _rowSprite->fillRect(0, 0, 4, _rowH, tc);
@@ -54,14 +55,14 @@ void ConstructorStandingsView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->setTextColor(tc);
     _rowSprite->drawNumber(cs.position, COL_POS, _rowH / 2);
 
-    // Team name — white
-    _rowSprite->setTextColor(UI::COL_TEXT);
+    // Team name
+    _rowSprite->setTextColor(nameCol);
     _rowSprite->drawString(cs.team.name, COL_NAME, _rowH / 2);
 
-    // Points
+    // Points — team color
     _rowSprite->setTextDatum(middle_right);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(UI::COL_TEXT);
+    _rowSprite->setTextColor(tc);
     _rowSprite->drawNumber(cs.points, COL_PTS, _rowH / 2);
 }
 

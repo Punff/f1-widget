@@ -66,7 +66,6 @@ void WeekendView::drawHeader() {
 }
 
 void WeekendView::drawRow(int dataIdx, bool selected, int dist) {
-    (void)dist;
     if (!_meeting) return;
 
     if (selected) {
@@ -75,12 +74,14 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist) {
         _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
     }
 
+    uint32_t dim = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
+
     // If no sessions, show a placeholder
     if (_meeting->sessionCount == 0) {
         _rowSprite->setTextDatum(middle_center);
-        _rowSprite->setTextColor(UI::COL_MUTED);
+        _rowSprite->setTextColor(dim);
         _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-        _rowSprite->drawString("No session data available", UI::SCREEN_W/2, _rowH/2);
+        _rowSprite->drawString("No session data", UI::SCREEN_W/2, _rowH/2);
         return;
     }
 
@@ -123,20 +124,20 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist) {
     // Day
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(isNextSession ? UI::COL_F1_RED : UI::COL_TEXT);
+    _rowSprite->setTextColor(isNextSession ? UI::COL_F1_RED : dim);
     _rowSprite->drawString(dayStr, COL_DAY, _rowH / 2 - 6);
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-    _rowSprite->setTextColor(UI::COL_TEXT_DIM);
+    _rowSprite->setTextColor(dim);
     _rowSprite->drawString(dateStr, COL_DAY, _rowH / 2 + 6);
 
     // Session name
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(UI::COL_TEXT);
+    _rowSprite->setTextColor(dim);
     _rowSprite->drawString(s.name, COL_NAME, _rowH / 2);
 
     // Time
     _rowSprite->setTextDatum(middle_right);
-    _rowSprite->setTextColor(UI::COL_TEXT);
+    _rowSprite->setTextColor(dim);
     _rowSprite->drawString(timeStr, COL_TIME, _rowH / 2);
 
     if (isNextSession) {
@@ -148,9 +149,22 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist) {
 void WeekendView::drawFooter() {
     _dm->footer()->draw();
 
-    char footerStr[32];
-    snprintf(footerStr, sizeof(footerStr), "LOCAL TIME  UTC%+d", timeMgr->getUTCOffset());
+    char footerStr[48];
+    time_t t = timeMgr->getLocalTime();
+    struct tm lt;
+    localtime_r(&t, &lt);
+    char timeBuf[12];
+    strftime(timeBuf, sizeof(timeBuf), "%H:%M:%S", &lt);
+    snprintf(footerStr, sizeof(footerStr), "%s  UTC%+d", timeBuf, timeMgr->getUTCOffset());
     _dm->footer()->drawText(footerStr);
+    _lastFooterSec = t;
+}
+
+void WeekendView::tick() {
+    time_t now = timeMgr->getLocalTime();
+    if (now != _lastFooterSec) {
+        drawFooter();
+    }
 }
 
 void WeekendView::onLongPress() {

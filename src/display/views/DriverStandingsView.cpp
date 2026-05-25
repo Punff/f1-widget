@@ -37,10 +37,12 @@ void DriverStandingsView::drawHeader()
 
 void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
 {
-    (void)dist;
     if (dataIdx < 0 || dataIdx >= (int)cache->driverStandings.size()) return;
     const auto &ds = cache->driverStandings[dataIdx];
     uint16_t tc = ds.driver.team.teamColor;
+
+    uint32_t textCol = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
+    uint32_t nameCol = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
 
     // Team color bar on left (always full brightness)
     _rowSprite->fillRect(0, 0, 4, _rowH, tc);
@@ -56,19 +58,19 @@ void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->setTextColor(tc);
     _rowSprite->drawNumber(ds.position, COL_POS, _rowH / 2);
 
-    // Driver acronym — white
-    _rowSprite->setTextColor(UI::COL_TEXT);
+    // Driver acronym
+    _rowSprite->setTextColor(nameCol);
     _rowSprite->drawString(ds.driver.acronym, COL_NAME, _rowH / 2);
 
-    // Team name (dimmed)
+    // Team name
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-    _rowSprite->setTextColor(UI::COL_TEXT_DIM);
+    _rowSprite->setTextColor(textCol);
     _rowSprite->drawString(ds.driver.team.name, COL_TEAM, _rowH / 2);
 
     // Points
     _rowSprite->setTextDatum(middle_right);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(UI::COL_TEXT);
+    _rowSprite->setTextColor(tc);
     _rowSprite->drawNumber(ds.points, COL_PTS, _rowH / 2);
 }
 

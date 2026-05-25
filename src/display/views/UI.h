@@ -55,7 +55,4 @@ namespace UI
     // Shared sprite max row height — all views use same size to prevent heap fragmentation
     static constexpr int MAX_ROW_H = 50;
 
-    // Encoder visual feedback (subtle)
-    static constexpr int ENCODER_PULSE_MS = 30;           // Shorter, subtle flash
-    static constexpr uint32_t ENCODER_FLASH_COL = 0x6800; // Dark red, subtle
 }

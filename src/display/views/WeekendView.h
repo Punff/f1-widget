@@ -12,6 +12,8 @@ protected:
     void drawRow(int dataIdx, bool selected, int dist) override;
     void drawFooter() override;
     void onLongPress() override;
+    void tick() override;
 private:
     const RaceMeeting *_meeting;
+    unsigned long _lastFooterSec = 0;
 };

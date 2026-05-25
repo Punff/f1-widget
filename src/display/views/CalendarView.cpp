@@ -83,10 +83,10 @@ void CalendarView::drawHeader()
 
 void CalendarView::drawRow(int dataIdx, bool selected, int dist)
 {
-    (void)dist;
     if (dataIdx < 0 || dataIdx >= (int)cache->calendar.size()) return;
     const auto &rm = cache->calendar[dataIdx];
     bool isNext = (dataIdx == nextRoundIdx);
+    uint32_t dim = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
 
     if (selected) {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
@@ -100,18 +100,18 @@ void CalendarView::drawRow(int dataIdx, bool selected, int dist)
     // Round
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(isNext ? UI::COL_F1_RED : UI::COL_TEXT);
+    _rowSprite->setTextColor(isNext ? UI::COL_F1_RED : dim);
     char roundStr[8];
     snprintf(roundStr, sizeof(roundStr), "R%02d", rm.round);
     _rowSprite->drawString(roundStr, COL_RND, _rowH / 2);
 
     // Venue / country
-    _rowSprite->setTextColor(UI::COL_TEXT);
+    _rowSprite->setTextColor(dim);
     _rowSprite->drawString(rm.circuit.countryName, COL_NAME, _rowH / 2);
 
     // Status
     const char *status = "DONE";
-    uint32_t statusCol = UI::COL_TEXT_DIM;
+    uint32_t statusCol = dim;
 
     if (isNext) {
         status = "NEXT";
@@ -128,7 +128,7 @@ void CalendarView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->drawString(status, COL_STATUS, _rowH / 2);
 
     // Date
-    _rowSprite->setTextColor(UI::COL_TEXT_DIM);
+    _rowSprite->setTextColor(dim);
     _rowSprite->drawString(rm.date, COL_DATE, _rowH / 2);
 }
 
@@ -137,6 +137,10 @@ void CalendarView::onPress()
     int idx = _cursor;
     if (idx >= 0 && idx < (int)cache->calendar.size())
     {
+        // Brief flash on pressed row before transitioning
+        int rowY = UI::HEADER_H + (_cursor - _scrollOffset) * _rowH;
+        _tft->fillRect(0, rowY, UI::SCREEN_W, _rowH, UI::COL_BG_SEL);
+        delay(40);
         _dm->launchWeekendView(&cache->calendar[idx]);
     }
 }

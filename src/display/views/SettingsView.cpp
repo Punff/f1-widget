@@ -1,8 +1,11 @@
 #include "SettingsView.h"
 #include "../DisplayManager.h"
+#include "../../time/TimeManager.h"
 #include "../../../include/UI_Fonts.h"
 #include <LittleFS.h>
 #include <esp_system.h>
+
+extern TimeManager *timeMgr;
 
 static constexpr uint32_t SETTINGS_MAGIC = 0x5E771;
 static constexpr const char *SETTINGS_PATH = "/settings.bin";
@@ -56,6 +59,7 @@ int SettingsView::dataSize() const
 void SettingsView::onEnter()
 {
     loadSettings(_settings);
+    timeMgr->setUTCOffset(_settings.utcOffset);
     _editing = false;
     ScrollListView::onEnter();
 }
@@ -146,6 +150,7 @@ void SettingsView::onPress()
     if (_editing)
     {
         _editing = false;
+        timeMgr->setUTCOffset(_settings.utcOffset);
         saveSettings(_settings);
         applyBrightness();
         fullRedraw();
@@ -236,6 +241,7 @@ void SettingsView::modifyValue(int delta)
         if (v >= -12 && v <= 14)
         {
             _settings.utcOffset = v;
+            timeMgr->setUTCOffset(v);
             drawSingleRow(_cursor - _scrollOffset);
         }
         break;
