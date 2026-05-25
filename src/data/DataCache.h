@@ -68,6 +68,14 @@ struct SessionResult
     bool isFastestLap;
 };
 
+struct NewsArticle
+{
+    char title[128];
+    char description[384];
+    char pubDate[24];
+    char url[192];
+};
+
 struct RaceMeeting
 {
     int round;
@@ -88,6 +96,7 @@ public:
     std::vector<DriverStanding> driverStandings;
     std::vector<ConstructorStanding> constructorStandings;
     std::vector<RaceMeeting> calendar;
+    std::vector<NewsArticle> newsFeed;
 
     int currentSeason = 2026;
     uint32_t lastUpdated = 0;

@@ -1,6 +1,7 @@
 #include "APIClient.h"
 #include <algorithm>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 
 APIClient::APIClient(DataCache *cache) : _cache(cache) {}
 
@@ -318,6 +319,203 @@ bool APIClient::syncCalendar()
     for (auto &rm : _cache->calendar) totalSessions += rm.sessionCount;
     Serial.printf("[SYNC] Calendar complete. %d races, %d sessions.\n", _cache->calendar.size(), totalSessions);
     return true;
+}
+
+// ── RSS Helpers ────────────────────────────────────────────────────────
+
+static void trimTrailing(char *str)
+{
+    size_t len = strlen(str);
+    while (len > 0 && (str[len - 1] == ' ' || str[len - 1] == '\t' || str[len - 1] == '\n' || str[len - 1] == '\r' || str[len - 1] == ']'))
+        str[--len] = 0;
+}
+
+static void stripCDATA(char *str)
+{
+    const char *prefix = "<![CDATA[";
+    char *p = strstr(str, prefix);
+    if (!p) return;
+    char *start = p + 9;
+    char *end = strstr(start, "]]>");
+    if (!end) return;
+    memmove(p, start, end - start);
+    p[end - start] = '\0';
+}
+
+static void extractRSSField(const char *xml, const char *tag, char *out, size_t outSize)
+{
+    char openTag[64], closeTag[64];
+    snprintf(openTag, sizeof(openTag), "<%s>", tag);
+    snprintf(closeTag, sizeof(closeTag), "</%s>", tag);
+
+    const char *start = strstr(xml, openTag);
+    if (!start) { out[0] = 0; return; }
+    start += strlen(openTag);
+
+    const char *end = strstr(start, closeTag);
+    if (!end) { out[0] = 0; return; }
+
+    size_t len = end - start;
+    if (len >= outSize) len = outSize - 1;
+    strncpy(out, start, len);
+    out[len] = 0;
+
+    stripCDATA(out);
+}
+
+static void extractRSSDescription(const char *xml, const char *tag, char *out, size_t outSize)
+{
+    char openTag[64], closeTag[64];
+    snprintf(openTag, sizeof(openTag), "<%s>", tag);
+    snprintf(closeTag, sizeof(closeTag), "</%s>", tag);
+
+    const char *start = strstr(xml, openTag);
+    if (!start) { out[0] = 0; return; }
+    start += strlen(openTag);
+
+    const char *end = strstr(start, closeTag);
+    if (!end) { out[0] = 0; return; }
+
+    size_t wi = 0;
+    bool cdataOpen = false;
+    bool inTag = false;
+    bool inSpace = false;
+    for (const char *r = start; r < end && wi < outSize - 1; r++)
+    {
+        char c = *r;
+
+        if (c == '<')
+        {
+            if (strncmp(r, "<![CDATA[", 9) == 0)
+            {
+                cdataOpen = true;
+                r += 8;
+                continue;
+            }
+            inTag = true;
+            continue;
+        }
+        if (c == '>')
+        {
+            inTag = false;
+            continue;
+        }
+        if (inTag) continue;
+
+        if (c == '&')
+        {
+            if      (strncmp(r, "&amp;",  5) == 0) { c = '&';  r += 4; }
+            else if (strncmp(r, "&lt;",   4) == 0) { c = '<';  r += 3; }
+            else if (strncmp(r, "&gt;",   4) == 0) { c = '>';  r += 3; }
+            else if (strncmp(r, "&quot;", 6) == 0) { c = '"';  r += 5; }
+            else if (strncmp(r, "&#39;",  5) == 0) { c = '\''; r += 4; }
+            else if (strncmp(r, "&nbsp;", 6) == 0) { c = ' ';  r += 5; }
+            else { continue; }
+        }
+
+        if (cdataOpen && c == ']' && strncmp(r, "]]>", 3) == 0)
+        {
+            r += 2;
+            cdataOpen = false;
+            continue;
+        }
+
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\r')
+        {
+            if (!inSpace) { out[wi++] = ' '; inSpace = true; }
+        }
+        else
+        {
+            out[wi++] = c;
+            inSpace = false;
+        }
+    }
+    while (wi > 0 && (out[wi - 1] == ' ' || out[wi - 1] == ']')) wi--;
+    out[wi] = 0;
+
+    char *kr = strstr(out, "Keep reading");
+    if (kr)
+    {
+        *kr = '\0';
+        while (kr > out && kr[-1] == ' ') kr--;
+        *kr = '\0';
+    }
+}
+
+static void extractRSSDate(const char *xml, const char *tag, char *out, size_t outSize)
+{
+    char raw[64];
+    extractRSSField(xml, tag, raw, sizeof(raw));
+    if (raw[0] == 0) { out[0] = 0; return; }
+
+    int day, year, hour, min;
+    char month[8];
+    if (sscanf(raw, "%*3s, %d %3s %d %d:%d", &day, month, &year, &hour, &min) >= 4)
+        snprintf(out, outSize, "%d %s, %02d:%02d", day, month, hour, min);
+    else
+        strlcpy(out, raw, outSize);
+}
+
+bool APIClient::fetchNewsFeed()
+{
+    Serial.println("[RSS] Fetching motorsport.com news...");
+    _cache->newsFeed.clear();
+
+    String body;
+    {
+        WiFiClientSecure wcs;
+        wcs.setInsecure();
+        HTTPClient http;
+        http.begin(wcs, "https://www.motorsport.com/rss/f1/news/");
+        http.addHeader("User-Agent", "Mozilla/5.0 (compatible; F1Widget/1.0)");
+        int code = http.GET();
+        if (code != HTTP_CODE_OK)
+        {
+            Serial.printf("[RSS] HTTP failed: %d\n", code);
+            return false;
+        }
+        body = http.getString();
+        Serial.printf("[RSS] Downloaded %d bytes\n", body.length());
+    }
+
+    if (body.length() < 100) {
+        Serial.printf("[RSS] Body too short: %d bytes\n", body.length());
+        return false;
+    }
+
+    const char *p = body.c_str();
+    int count = 0;
+    while (*p && count < 20)
+    {
+        p = strstr(p, "<item>");
+        if (!p) break;
+        p += 6;
+
+        const char *end = strstr(p, "</item>");
+        if (!end) break;
+
+        NewsArticle *a = new NewsArticle();
+        if (!a) break;
+        memset(a, 0, sizeof(NewsArticle));
+
+        extractRSSField(p, "title", a->title, sizeof(a->title));
+        extractRSSDescription(p, "description", a->description, sizeof(a->description));
+        extractRSSDate(p, "pubDate", a->pubDate, sizeof(a->pubDate));
+        extractRSSField(p, "link", a->url, sizeof(a->url));
+
+        if (strlen(a->title) > 0)
+        {
+            _cache->newsFeed.push_back(*a);
+            count++;
+        }
+
+        delete a;
+        p = end + 7;
+    }
+
+    Serial.printf("[RSS] %d articles parsed\n", count);
+    _cache->newsFeed.shrink_to_fit();
+    return count > 0;
 }
 
 

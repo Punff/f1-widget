@@ -13,6 +13,7 @@ public:
     bool syncConstructors();
     bool syncCalendar();
     bool fetchSessionResults(int round, const char *sessionType, std::vector<SessionResult> &results);
+    bool fetchNewsFeed();
 
 private:
     DataCache *_cache;

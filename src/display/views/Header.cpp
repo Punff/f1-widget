@@ -14,20 +14,29 @@ void Header::draw(const char *title, const char *subtitle, const char *prefix)
 
     _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
 
-    _tft->setTextDatum(top_left);
+    int centerY = UI::HEADER_H / 2 - 2; // Slight upward offset for line divider
+
+    _tft->setTextDatum(middle_left);
     _tft->setTextColor(UI::COL_F1_RED);
     _tft->setFont(UI::Fonts::HEADER_BIG);
-    _tft->drawString(prefix, 10, 8);
+    _tft->drawString(prefix, 10, centerY);
 
-    _tft->setTextColor(UI::COL_TEXT);
-    _tft->setFont(UI::Fonts::BODY_MAIN);
-    _tft->drawString(title, 110, 10);
-
+    int titleX = 100; // Consistent indent
     if (subtitle)
     {
+        _tft->setTextColor(UI::COL_TEXT);
+        _tft->setFont(UI::Fonts::BODY_MAIN);
+        _tft->drawString(title, titleX, centerY - 8);
+
         _tft->setTextColor(UI::COL_MUTED);
         _tft->setFont(UI::Fonts::LABEL_SMALL);
-        _tft->drawString(subtitle, 110, 32);
+        _tft->drawString(subtitle, titleX, centerY + 12);
+    }
+    else
+    {
+        _tft->setTextColor(UI::COL_TEXT);
+        _tft->setFont(UI::Fonts::BODY_MAIN);
+        _tft->drawString(title, titleX, centerY);
     }
 
     _tft->fillRect(0, UI::HEADER_H - 2, UI::SCREEN_W, 2, UI::COL_F1_RED);
