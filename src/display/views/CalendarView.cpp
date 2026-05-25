@@ -2,19 +2,12 @@
 #include "../../data/DataCache.h"
 #include "../../../include/UI_Fonts.h"
 #include "../../time/TimeManager.h"
+#include "../../time/TimeUtils.h"
 #include "../DisplayManager.h"
 
 extern DataCache *cache;
 extern TimeManager *timeMgr;
 static int nextRoundIdx = -1;
-
-// Portable timegm replacement
-static time_t my_timegm(struct tm *t)
-{
-    return t->tm_sec + t->tm_min * 60 + t->tm_hour * 3600 + t->tm_yday * 86400 +
-           (t->tm_year - 70) * 31536000 + ((t->tm_year - 69) / 4) * 86400 -
-           ((t->tm_year - 1) / 100) * 86400 + ((t->tm_year + 299) / 400) * 86400;
-}
 
 // Column offsets
 static constexpr int COL_RND = 12;
@@ -143,4 +136,9 @@ void CalendarView::onPress()
         delay(40);
         _dm->launchWeekendView(&cache->calendar[idx]);
     }
+}
+
+void CalendarView::onLongPress()
+{
+    _dm->returnToMenu();
 }

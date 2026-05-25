@@ -1,17 +1,12 @@
 #include "WeekendView.h"
 #include "../../../include/UI_Fonts.h"
 #include "../../time/TimeManager.h"
+#include "../../time/TimeUtils.h"
 #include "../../data/DataCache.h"
 #include "../DisplayManager.h"
 #include <time.h>
 
 extern TimeManager *timeMgr;
-
-static time_t my_timegm(struct tm *t) {
-    return t->tm_sec + t->tm_min*60 + t->tm_hour*3600 + t->tm_yday*86400 +
-           (t->tm_year-70)*31536000 + ((t->tm_year-69)/4)*86400 -
-           ((t->tm_year-1)/100)*86400 + ((t->tm_year+299)/400)*86400;
-}
 
 static constexpr int COL_DAY = 15;
 static constexpr int COL_NAME = 75;

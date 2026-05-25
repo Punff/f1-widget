@@ -136,7 +136,7 @@ void DisplayManager::onPress()
 void DisplayManager::onLongPress()
 {
     if (_header) _header->encoderLongPress();
-    returnToMenu();
+    if (_currentView) _currentView->onLongPress();
 }
 void DisplayManager::onDoublePress()
 {

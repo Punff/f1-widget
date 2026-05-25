@@ -56,7 +56,9 @@ void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(tc);
-    _rowSprite->drawNumber(ds.position, COL_POS, _rowH / 2);
+    char posBuf[4];
+    snprintf(posBuf, sizeof(posBuf), "%2d", ds.position);
+    _rowSprite->drawString(posBuf, COL_POS, _rowH / 2);
 
     // Driver acronym
     _rowSprite->setTextColor(nameCol);
@@ -99,4 +101,9 @@ void DriverStandingsView::drawFooter()
     }
 
     _dm->footer()->drawText(buf, color);
+}
+
+void DriverStandingsView::onLongPress()
+{
+    _dm->returnToMenu();
 }

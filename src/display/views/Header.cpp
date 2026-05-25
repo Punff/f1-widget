@@ -60,13 +60,10 @@ void Header::drawEncoderArc() {
     unsigned long elapsed = now - _glowMs;
 
     if (elapsed < COLOR_MS) {
-        // Phase 1: thick color burst — tactile impact in red/white/yellow
-        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN - 1, ARC_RMAX + 1, ARC_START, ARC_END, _glowColor);
+        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, _glowColor);
     } else if (elapsed < WHITE_DECAY_MS) {
-        // Phase 2: settles to thin white — premium glow decay
         _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, UI::COL_TEXT);
     } else {
-        // Idle: thin white arc
-        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, UI::COL_TEXT);
+        _tft->fillArc(ARC_CX, ARC_CY, ARC_RMIN, ARC_RMAX, ARC_START, ARC_END, 0x444444);
     }
 }

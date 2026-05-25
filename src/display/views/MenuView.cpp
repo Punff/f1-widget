@@ -55,6 +55,11 @@ void MenuView::onPress()
     _dm->launchMenuItem(_cursor);
 }
 
+void MenuView::onLongPress()
+{
+    _dm->returnToMenu();
+}
+
 const char *MenuView::_getMenuName(int index) const
 {
     switch (static_cast<MenuItem>(index))

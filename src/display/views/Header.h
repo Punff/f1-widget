@@ -26,10 +26,10 @@ private:
     // Center at (456,24), R=24, arc 0°→90° connects right edge (480,24) to top edge (456,0).
     static constexpr int ARC_CX = 480;
     static constexpr int ARC_CY = 0;
-    static constexpr int ARC_RMIN = 23;
-    static constexpr int ARC_RMAX = 24;
+    static constexpr int ARC_RMIN = 18;
+    static constexpr int ARC_RMAX = 21;
     static constexpr int ARC_START = 90;
     static constexpr int ARC_END = 270;
-    static constexpr unsigned long COLOR_MS = 50;        // Brief color burst
-    static constexpr unsigned long WHITE_DECAY_MS = 200; // Short cooldown to white
+    static constexpr unsigned long COLOR_MS = 80;        // Color burst
+    static constexpr unsigned long WHITE_DECAY_MS = 400; // Decay to dim
 };

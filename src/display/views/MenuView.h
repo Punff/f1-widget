@@ -13,6 +13,7 @@ protected:
     void drawRow(int dataIdx, bool selected, int dist) override;
     void drawFooter() override;
     void onPress() override;
+    void onLongPress() override;
 
 private:
     const char *_getMenuName(int index) const;
