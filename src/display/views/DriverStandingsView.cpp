@@ -28,16 +28,20 @@ void DriverStandingsView::drawHeader()
     // Column headers
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
-    _tft->drawString("#", COL_POS, 34);
-    _tft->drawString("DRIVER", COL_NAME, 34);
-    _tft->drawString("TEAM", COL_TEAM, 34);
-    _tft->setTextDatum(top_right);
-    _tft->drawString("PTS", COL_PTS, 34);
+
+    _tft->setTextDatum(middle_left);
+    _tft->drawString("#", COL_POS, 42);
+    _tft->drawString("DRIVER", COL_NAME, 42);
+    _tft->drawString("TEAM", COL_TEAM, 42);
+
+    _tft->setTextDatum(middle_right);
+    _tft->drawString("PTS", COL_PTS, 42);
 }
 
 void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
 {
-    if (dataIdx < 0 || dataIdx >= (int)cache->driverStandings.size()) return;
+    if (dataIdx < 0 || dataIdx >= (int)cache->driverStandings.size())
+        return;
     const auto &ds = cache->driverStandings[dataIdx];
     uint16_t tc = ds.driver.team.teamColor;
 
@@ -47,7 +51,8 @@ void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
     // Team color bar on left (always full brightness)
     _rowSprite->fillRect(0, 0, 4, _rowH, tc);
 
-    if (selected) {
+    if (selected)
+    {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
         _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, tc);
     }
@@ -103,12 +108,14 @@ void DriverStandingsView::drawFooter()
     _dm->footer()->drawCenter(buf, color);
 }
 
-void DriverStandingsView::onTurnRight() {
+void DriverStandingsView::onTurnRight()
+{
     ScrollListView::onTurnRight();
     drawFooter();
 }
 
-void DriverStandingsView::onTurnLeft() {
+void DriverStandingsView::onTurnLeft()
+{
     ScrollListView::onTurnLeft();
     drawFooter();
 }

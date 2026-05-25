@@ -117,6 +117,7 @@ void DisplayManager::setView(IView *view)
     _currentView = view;
 
     _header->markDirty();
+    _footer->markDirty();
 
     // Clean sweep instead of partial clears
     _tft->fillScreen(UI::COL_BG);

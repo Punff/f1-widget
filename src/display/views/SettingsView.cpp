@@ -47,15 +47,10 @@ void SettingsView::saveSettings(const SettingsData &s)
 SettingsView::SettingsView(LGFX *tft, DisplayManager *dm)
     : ScrollListView(tft, dm, 46, 5, 2), _editing(false)
 {
-    _settings.magic = SETTINGS_MAGIC;
-    _settings.brightness = 255;
-    _settings.utcOffset = 2;
+    loadSettings(_settings);
 }
 
-int SettingsView::dataSize() const
-{
-    return SET_COUNT;
-}
+int SettingsView::dataSize() const { return SET_COUNT; }
 
 void SettingsView::onEnter()
 {
@@ -65,10 +60,7 @@ void SettingsView::onEnter()
     ScrollListView::onEnter();
 }
 
-void SettingsView::drawHeader()
-{
-    _dm->header()->draw("SYSTEM SETTINGS");
-}
+void SettingsView::drawHeader() { _dm->header()->draw("SYSTEM SETTINGS"); }
 
 void SettingsView::drawRow(int dataIdx, bool selected, int dist)
 {
@@ -87,11 +79,23 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
     const char *icon = "";
     switch ((SettingIdx)dataIdx)
     {
-    case SET_BRIGHTNESS: icon = "BRI"; break;
-    case SET_UTC_OFFSET: icon = "UTC"; break;
-    case SET_SYSINFO:    icon = "SYS"; break;
-    case SET_CLEAR_CACHE: icon = "CLR"; break;
-    case SET_ABOUT:      icon = "ABT"; break;
+    case SET_BRIGHTNESS:
+        icon = "BRI";
+        break;
+    case SET_UTC_OFFSET:
+        icon = "UTC";
+        break;
+    case SET_SYSINFO:
+        icon = "SYS";
+        break;
+    case SET_CLEAR_CACHE:
+        icon = "CLR";
+        break;
+    case SET_ABOUT:
+        icon = "ABT";
+        break;
+    default:
+        break;
     }
 
     _rowSprite->setTextDatum(middle_left);
@@ -108,19 +112,18 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
         _rowSprite->drawString("Backlight", COL_LABEL, _rowH / 2);
         if (_editing)
         {
-            _rowSprite->fillRect(COL_VALUE - 60, 0, 80, _rowH, UI::COL_BG_SEL);
+            _rowSprite->fillRect(COL_VALUE - 100, 0, 120, _rowH, UI::COL_BG_SEL);
             _rowSprite->setTextColor(UI::COL_F1_RED);
         }
         _rowSprite->setTextDatum(middle_right);
         _rowSprite->drawNumber(_settings.brightness * 100 / 255, COL_VALUE, _rowH / 2);
         _rowSprite->drawString("%", COL_VALUE + 30, _rowH / 2);
         break;
-
     case SET_UTC_OFFSET:
         _rowSprite->drawString("UTC Offset", COL_LABEL, _rowH / 2);
         if (_editing)
         {
-            _rowSprite->fillRect(COL_VALUE - 60, 0, 80, _rowH, UI::COL_BG_SEL);
+            _rowSprite->fillRect(COL_VALUE - 100, 0, 120, _rowH, UI::COL_BG_SEL);
             _rowSprite->setTextColor(UI::COL_F1_RED);
         }
         _rowSprite->setTextDatum(middle_right);
@@ -130,32 +133,28 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
             _rowSprite->drawString(buf, COL_VALUE, _rowH / 2);
         }
         break;
-
     case SET_SYSINFO:
-    {
         _rowSprite->drawString("System Info", COL_LABEL, _rowH / 2);
         _rowSprite->setTextDatum(middle_right);
         _rowSprite->setTextColor(UI::COL_TEXT_DIM);
-        char buf[16];
-        snprintf(buf, sizeof(buf), "%u KB", ESP.getFreeHeap() / 1024);
-        _rowSprite->drawString(buf, COL_VALUE, _rowH / 2);
+        {
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%u KB", ESP.getFreeHeap() / 1024);
+            _rowSprite->drawString(buf, COL_VALUE, _rowH / 2);
+        }
         break;
-    }
-
     case SET_CLEAR_CACHE:
         _rowSprite->drawString("Clear Cache & Reboot", COL_LABEL, _rowH / 2);
         _rowSprite->setTextDatum(middle_right);
         _rowSprite->setTextColor(UI::COL_F1_RED);
         _rowSprite->drawString("PRESS", COL_VALUE, _rowH / 2);
         break;
-
     case SET_ABOUT:
         _rowSprite->drawString("About", COL_LABEL, _rowH / 2);
         _rowSprite->setTextDatum(middle_right);
         _rowSprite->setTextColor(UI::COL_TEXT_DIM);
         _rowSprite->drawString("v1.0", COL_VALUE, _rowH / 2);
         break;
-
     default:
         break;
     }
@@ -180,7 +179,6 @@ void SettingsView::onPress()
         fullRedraw();
         return;
     }
-
     switch ((SettingIdx)_cursor)
     {
     case SET_BRIGHTNESS:
@@ -188,17 +186,13 @@ void SettingsView::onPress()
         _editing = true;
         partialRedraw(_cursor);
         break;
-
     case SET_CLEAR_CACHE:
         cache->clear();
         saveSettings(_settings);
-        LittleFS.remove("/settings.bin");
+        LittleFS.remove(SETTINGS_PATH);
         delay(500);
         ESP.restart();
         break;
-
-    case SET_SYSINFO:
-    case SET_ABOUT:
     default:
         break;
     }
@@ -207,27 +201,17 @@ void SettingsView::onPress()
 void SettingsView::onTurnRight()
 {
     if (_editing)
-    {
         modifyValue(1);
-    }
     else
-    {
         ScrollListView::onTurnRight();
-    }
 }
-
 void SettingsView::onTurnLeft()
 {
     if (_editing)
-    {
         modifyValue(-1);
-    }
     else
-    {
         ScrollListView::onTurnLeft();
-    }
 }
-
 void SettingsView::onLongPress()
 {
     if (_editing)
@@ -238,9 +222,7 @@ void SettingsView::onLongPress()
         fullRedraw();
     }
     else
-    {
         _dm->returnToMenu();
-    }
 }
 
 void SettingsView::modifyValue(int delta)
@@ -250,11 +232,7 @@ void SettingsView::modifyValue(int delta)
     case SET_BRIGHTNESS:
     {
         int v = _settings.brightness + delta * 25;
-        if (v < 0)
-            v = 1;
-        if (v > 255)
-            v = 255;
-        _settings.brightness = v;
+        _settings.brightness = constrain(v, 1, 255);
         applyBrightness();
         drawSingleRow(_cursor - _scrollOffset);
         break;
@@ -262,20 +240,13 @@ void SettingsView::modifyValue(int delta)
     case SET_UTC_OFFSET:
     {
         int v = _settings.utcOffset + delta;
-        if (v >= -12 && v <= 14)
-        {
-            _settings.utcOffset = v;
-            timeMgr->setUTCOffset(v);
-            drawSingleRow(_cursor - _scrollOffset);
-        }
+        _settings.utcOffset = constrain(v, -12, 14);
+        timeMgr->setUTCOffset(_settings.utcOffset);
+        drawSingleRow(_cursor - _scrollOffset);
         break;
     }
     default:
         break;
     }
 }
-
-void SettingsView::applyBrightness()
-{
-    ledcWrite(0, _settings.brightness);
-}
+void SettingsView::applyBrightness() { ledcWrite(0, _settings.brightness); }

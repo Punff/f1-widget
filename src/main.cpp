@@ -28,23 +28,28 @@ TimeManager *timeMgr = nullptr;
 
 void onEncoderTurnRight()
 {
-    if (dm) dm->onTurnRight();
+    if (dm)
+        dm->onTurnRight();
 }
 void onEncoderTurnLeft()
 {
-    if (dm) dm->onTurnLeft();
+    if (dm)
+        dm->onTurnLeft();
 }
 void onEncoderPressed()
 {
-    if (dm) dm->onPress();
+    if (dm)
+        dm->onPress();
 }
 void onEncoderLongPress()
 {
-    if (dm) dm->onLongPress();
+    if (dm)
+        dm->onLongPress();
 }
 void onEncoderDoublePress()
 {
-    if (dm) dm->onDoublePress();
+    if (dm)
+        dm->onDoublePress();
 }
 
 void setup()
@@ -54,6 +59,7 @@ void setup()
     Serial.printf("\n[BOOT] F1 Widget Starting... Free heap: %u bytes\n", ESP.getFreeHeap());
 
     tft.init();
+    tft.initDMA();
     tft.setRotation(1);
 
     // Backlight PWM init (5000Hz, 8-bit, fully on)
@@ -92,8 +98,10 @@ void setup()
 
         dm->drawBootStatus("Setting clock...");
         timeMgr = new TimeManager();
-        for (int i = 0; i < 3; i++) {
-            if (timeMgr->syncNTP()) break;
+        for (int i = 0; i < 3; i++)
+        {
+            if (timeMgr->syncNTP())
+                break;
             dm->drawBootStatus("NTP retrying...");
             delay(1000);
         }

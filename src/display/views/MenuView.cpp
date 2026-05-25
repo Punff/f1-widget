@@ -28,14 +28,43 @@ void MenuView::drawRow(int dataIdx, bool selected, int dist)
     }
 
     uint32_t dim = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
+    uint32_t iconCol = selected ? UI::COL_F1_RED : dim;
 
-    // Icon
-    _rowSprite->setTextDatum(middle_left);
-    _rowSprite->setFont(selected ? UI::Fonts::DATA_ACCENT : UI::Fonts::LABEL_SMALL);
-    _rowSprite->setTextColor(selected ? UI::COL_F1_RED : dim);
-    _rowSprite->drawString(_getMenuIcon(dataIdx), COL_ICON, _rowH / 2);
+    // Geometric Icon
+    int ix = COL_ICON + 10;
+    int iy = _rowH / 2;
+    switch (static_cast<MenuItem>(dataIdx))
+    {
+    case MenuItem::DRIVER_STANDINGS:
+        _rowSprite->fillCircle(ix, iy, 8, iconCol);
+        _rowSprite->fillCircle(ix, iy, 4, UI::COL_BG);
+        break;
+    case MenuItem::CONSTRUCTOR_STANDINGS:
+        _rowSprite->fillRect(ix - 8, iy - 6, 16, 12, iconCol);
+        break;
+    case MenuItem::CALENDAR:
+        _rowSprite->drawRect(ix - 8, iy - 8, 16, 16, iconCol);
+        _rowSprite->drawFastHLine(ix - 8, iy - 2, 16, iconCol);
+        break;
+    case MenuItem::NEWS:
+        _rowSprite->drawFastVLine(ix - 8, iy - 8, 16, iconCol);
+        _rowSprite->drawFastHLine(ix - 8, iy - 8, 12, iconCol);
+        _rowSprite->drawFastHLine(ix - 8, iy, 8, iconCol);
+        _rowSprite->drawFastHLine(ix - 8, iy + 8, 14, iconCol);
+        break;
+    case MenuItem::SETTINGS:
+        _rowSprite->drawCircle(ix, iy, 7, iconCol);
+        for(int a=0; a<360; a+=45) {
+            float rad = a * DEG_TO_RAD;
+            _rowSprite->fillCircle(ix + cos(rad)*9, iy + sin(rad)*9, 2, iconCol);
+        }
+        break;
+    default:
+        break;
+    }
 
     // Name
+    _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(dim);
     _rowSprite->drawString(_getMenuName(dataIdx), COL_NAME, _rowH / 2);
@@ -69,18 +98,5 @@ const char *MenuView::_getMenuName(int index) const
     case MenuItem::NEWS:                  return "Latest News";
     case MenuItem::SETTINGS:              return "System Settings";
     default:                              return "Unknown";
-    }
-}
-
-const char *MenuView::_getMenuIcon(int index) const
-{
-    switch (static_cast<MenuItem>(index))
-    {
-    case MenuItem::DRIVER_STANDINGS:      return "DS";
-    case MenuItem::CONSTRUCTOR_STANDINGS: return "CS";
-    case MenuItem::CALENDAR:              return "CAL";
-    case MenuItem::NEWS:                  return "NEW";
-    case MenuItem::SETTINGS:              return "SET";
-    default:                              return "??";
     }
 }

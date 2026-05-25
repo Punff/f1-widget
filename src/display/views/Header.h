@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "UI.h"
 
 class LGFX;
 class TimeManager;
@@ -27,16 +28,18 @@ private:
     void drawClock(TimeManager *tm);
     void drawEncoderDot();
 
-    // Encoder indicator — bottom-right glowing dot
-    static constexpr int DOT_X = 458;
-    static constexpr int DOT_Y = 300;
-    static constexpr int DOT_R = 5;
-    static constexpr unsigned long COLOR_MS = 80;
-    static constexpr unsigned long WHITE_DECAY_MS = 400;
+    // Header grid constants
+    static constexpr int H_PAD = 10;
+    static constexpr int H_CENTER_Y = UI::HEADER_H / 2;
+    static constexpr int H_CLOCK_X = UI::SCREEN_W - 5;
+    static constexpr int H_DOT_X = UI::SCREEN_W - 55;
+    static constexpr int H_DOT_Y = H_CENTER_Y;
+    static constexpr int H_DOT_R = 5;
 
     // Clock — top-right
-    static constexpr int CLOCK_RX = 470;
-    static constexpr int CLOCK_Y = 9;
     static constexpr int CLOCK_W = 80;
     static constexpr int CLOCK_H = 22;
+
+    static constexpr unsigned long COLOR_MS = 80;
+    static constexpr unsigned long WHITE_DECAY_MS = 400;
 };

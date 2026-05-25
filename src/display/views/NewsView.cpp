@@ -151,9 +151,9 @@ void NewsView::renderOverlay(const NewsArticle &a)
     if (res == 0)
     {
         const int quietZoneModules = 4;
-        const int totalModules = qrcode.size + (quietZoneModules * 2);
+        const int modules = qrcode.size + (quietZoneModules * 2);
         int scale = 3;
-        int qrTotalSize = totalModules * scale;
+        int qrTotalSize = modules * scale;
         
         int qrX = (UI::SCREEN_W - qrTotalSize) / 2;
         int qrY = UI::HEADER_H + (UI::CONTENT_H - qrTotalSize) / 2 - 10;
@@ -161,19 +161,26 @@ void NewsView::renderOverlay(const NewsArticle &a)
         // Visual Improvement: Subtle frame/shadow
         _tft->drawRect(qrX - 2, qrY - 2, qrTotalSize + 4, qrTotalSize + 4, UI::COL_DIVIDER);
         
-        // White Background for scanability
-        _tft->fillRect(qrX, qrY, qrTotalSize, qrTotalSize, 0xFFFFFF);
+        // Use a sprite to draw QR once (scaled)
+        LGFX_Sprite qrSprite(_tft);
+        if (qrSprite.createSprite(qrTotalSize, qrTotalSize))
+        {
+            qrSprite.fillSprite(0xFFFFFF); // Background White
 
-        for (uint8_t y = 0; y < qrcode.size; y++) {
-            for (uint8_t x = 0; x < qrcode.size; x++) {
-                if (qrcode_getModule(&qrcode, x, y)) {
-                    _tft->fillRect(
-                        qrX + (x + quietZoneModules) * scale,
-                        qrY + (y + quietZoneModules) * scale,
-                        scale, scale, 0x000000
-                    );
+            for (uint8_t y = 0; y < qrcode.size; y++) {
+                for (uint8_t x = 0; x < qrcode.size; x++) {
+                    if (qrcode_getModule(&qrcode, x, y)) {
+                        qrSprite.fillRect(
+                            (x + quietZoneModules) * scale,
+                            (y + quietZoneModules) * scale,
+                            scale, scale, 0x000000
+                        );
+                    }
                 }
             }
+            _tft->waitDMA();
+            _tft->pushImageDMA(qrX, qrY, qrSprite.width(), qrSprite.height(), (uint16_t*)qrSprite.getBuffer());
+            // waitDMA will be called by subsequent draw calls or next frame
         }
 
         // URL Label below QR

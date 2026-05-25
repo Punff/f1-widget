@@ -75,11 +75,13 @@ void ScrollListView::fullRedraw()
 {
     updateScrollOffset();
 
+    _tft->waitDMA();
     drawHeader();
 
     for (int row = 0; row < _rowsVisible; row++)
         drawSingleRow(row);
 
+    _tft->waitDMA();
     drawFooter();
 }
 
@@ -92,6 +94,8 @@ void ScrollListView::partialRedraw(int oldCursor)
     {
         for (int row = 0; row < _rowsVisible; row++)
             drawSingleRow(row);
+        
+        _tft->waitDMA();
         drawFooter();
         return;
     }
@@ -104,6 +108,7 @@ void ScrollListView::partialRedraw(int oldCursor)
     if (newRow >= 0 && newRow < _rowsVisible)
         drawSingleRow(newRow);
 
+    _tft->waitDMA();
     drawFooter();
 }
 
@@ -117,8 +122,19 @@ void ScrollListView::drawSingleRow(int row)
     int dist = abs(dataIdx - _cursor);
     int rowY = UI::HEADER_H + (row * _rowH);
 
-    // Clear sprite to black first
-    _rowSprite->fillSprite(UI::COL_BG);
+    // Clamp row height to prevent overlap with footer
+    int drawH = _rowH;
+    if (rowY + drawH > UI::FOOTER_Y) {
+        drawH = UI::FOOTER_Y - rowY;
+    }
+    if (drawH <= 0) return;
+
+    // Wait for previous DMA transfer to finish before modifying the buffer
+    _tft->waitDMA();
+
+    // Clear sprite: use alternate background for even rows, or standard BG
+    uint32_t bgCol = (dataIdx % 2 == 0) ? UI::COL_BG : UI::COL_BG_ALT;
+    _rowSprite->fillSprite(bgCol);
 
     // Draw row content
     if (dataIdx >= 0 && dataIdx < dataSize())
@@ -126,8 +142,8 @@ void ScrollListView::drawSingleRow(int row)
         drawRow(dataIdx, selected, dist);
     }
 
-    // Push row to screen
-    _rowSprite->pushSprite(0, rowY);
+    // Push row to screen using DMA
+    _tft->pushImageDMA(0, rowY, _rowSprite->width(), drawH, (uint16_t*)_rowSprite->getBuffer());
 }
 
 

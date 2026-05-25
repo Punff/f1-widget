@@ -27,15 +27,19 @@ void ConstructorStandingsView::drawHeader()
     // Column headers
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
-    _tft->drawString("#", COL_POS, 34);
-    _tft->drawString("TEAM", COL_NAME, 34);
-    _tft->setTextDatum(top_right);
-    _tft->drawString("PTS", COL_PTS, 34);
+
+    _tft->setTextDatum(middle_left);
+    _tft->drawString("#", COL_POS, 42);
+    _tft->drawString("TEAM", COL_NAME, 42);
+
+    _tft->setTextDatum(middle_right);
+    _tft->drawString("PTS", COL_PTS, 42);
 }
 
 void ConstructorStandingsView::drawRow(int dataIdx, bool selected, int dist)
 {
-    if (dataIdx < 0 || dataIdx >= (int)cache->constructorStandings.size()) return;
+    if (dataIdx < 0 || dataIdx >= (int)cache->constructorStandings.size())
+        return;
     const auto &cs = cache->constructorStandings[dataIdx];
     uint16_t tc = cs.team.teamColor;
 
@@ -44,7 +48,8 @@ void ConstructorStandingsView::drawRow(int dataIdx, bool selected, int dist)
     // Team color bar on left (always full brightness)
     _rowSprite->fillRect(0, 0, 4, _rowH, tc);
 
-    if (selected) {
+    if (selected)
+    {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
         _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, tc);
     }
@@ -95,12 +100,14 @@ void ConstructorStandingsView::drawFooter()
     _dm->footer()->drawCenter(buf, color);
 }
 
-void ConstructorStandingsView::onTurnRight() {
+void ConstructorStandingsView::onTurnRight()
+{
     ScrollListView::onTurnRight();
     drawFooter();
 }
 
-void ConstructorStandingsView::onTurnLeft() {
+void ConstructorStandingsView::onTurnLeft()
+{
     ScrollListView::onTurnLeft();
     drawFooter();
 }

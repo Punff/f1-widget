@@ -17,5 +17,4 @@ protected:
 
 private:
     const char *_getMenuName(int index) const;
-    const char *_getMenuIcon(int index) const;
 };
