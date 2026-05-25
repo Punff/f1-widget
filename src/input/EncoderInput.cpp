@@ -90,8 +90,12 @@ void encoder_loop()
     case BTN_WAIT_DOUBLE:
         if (buttonDown)
         {
-            onEncoderDoublePress();
-            buttonState = BTN_IDLE;
+            // Debounce: ignore mechanical bounce (< 30ms after release)
+            if ((now - buttonUpTime) >= 30)
+            {
+                onEncoderDoublePress();
+                buttonState = BTN_IDLE;
+            }
         }
         else if ((now - buttonUpTime) >= DOUBLE_PRESS_WINDOW_MS)
         {

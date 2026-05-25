@@ -12,6 +12,7 @@ public:
     bool syncDriversAndStandings();
     bool syncConstructors();
     bool syncCalendar();
+    bool fetchSessionResults(int round, const char *sessionType, std::vector<SessionResult> &results);
 
 private:
     DataCache *_cache;

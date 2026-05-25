@@ -158,6 +158,98 @@ bool APIClient::syncConstructors()
     return true;
 }
 
+bool APIClient::fetchSessionResults(int round, const char *sessionType, std::vector<SessionResult> &results)
+{
+    String season = String(_cache->currentSeason);
+    String endpoint;
+
+    if (strcmp(sessionType, "Race") == 0)
+        endpoint = "results";
+    else if (strcmp(sessionType, "Qualifying") == 0)
+        endpoint = "qualifying";
+    else if (strcmp(sessionType, "Sprint") == 0)
+        endpoint = "sprint";
+    else
+        return false;
+
+    String url = "https://api.jolpi.ca/ergast/f1/" + season + "/" + String(round) + "/" + endpoint + ".json";
+    Serial.printf("[FETCH] Session results: %s\n", url.c_str());
+
+    String json;
+    {
+        HTTPClient http;
+        http.begin(url);
+        int httpCode = http.GET();
+        if (httpCode != HTTP_CODE_OK) {
+            Serial.printf("[FETCH] HTTP failed: %d\n", httpCode);
+            return false;
+        }
+        json = http.getString();
+    }
+
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, json);
+    if (err) {
+        Serial.printf("[FETCH] JSON parse error: %s\n", err.c_str());
+        return false;
+    }
+
+    JsonArray races = doc["MRData"]["RaceTable"]["Races"];
+    if (races.size() == 0) return false;
+
+    JsonVariant resultsArr;
+    if (endpoint == "qualifying")
+        resultsArr = races[0]["QualifyingResults"];
+    else
+        resultsArr = races[0]["Results"];
+
+    if (!resultsArr.is<JsonArray>()) return false;
+
+    results.clear();
+    results.reserve(resultsArr.as<JsonArray>().size());
+
+    for (JsonObject r : resultsArr.as<JsonArray>())
+    {
+        SessionResult sr;
+        sr.position = r["position"].as<int>();
+        sr.grid = r["grid"] | 0;
+        sr.laps = r["laps"] | 0;
+        sr.points = r["points"].as<int>();
+
+        const char *code = r["Driver"]["code"] | "";
+        strlcpy(sr.driverCode, code, sizeof(sr.driverCode));
+        strlcpy(sr.constructorName, r["Constructor"]["name"] | "", sizeof(sr.constructorName));
+
+        if (endpoint == "qualifying")
+        {
+            // Best lap time: Q3 > Q2 > Q1
+            const char *q = r["Q3"] | r["Q2"] | r["Q1"] | "";
+            strlcpy(sr.timeOrStatus, q, sizeof(sr.timeOrStatus));
+            sr.isFastestLap = false;
+        }
+        else
+        {
+            const char *status = r["status"] | "";
+            if (r["Time"]["time"].is<const char *>())
+            {
+                const char *t = r["Time"]["time"];
+                // P1 gets total time like "1:28:15.486", others get gap like "+10.768"
+                strlcpy(sr.timeOrStatus, t, sizeof(sr.timeOrStatus));
+            }
+            else
+            {
+                strlcpy(sr.timeOrStatus, status, sizeof(sr.timeOrStatus));
+            }
+            sr.isFastestLap = (r["FastestLap"]["rank"].as<int>() == 1);
+        }
+
+        results.push_back(sr);
+    }
+
+    Serial.printf("[FETCH] %zu results for %s (Rd %d)\n", results.size(), endpoint.c_str(), round);
+    return true;
+}
+
 bool APIClient::syncCalendar()
 {
     String season = String(_cache->currentSeason);

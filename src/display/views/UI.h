@@ -35,6 +35,7 @@ namespace UI
     static constexpr uint32_t COL_MUTED = 0x777777;     // Subtle grey
     static constexpr uint32_t COL_F1_RED = 0xFF0000;    // Pure F1 red
     static constexpr uint32_t COL_F1_YELLOW = 0xFFD700; // F1 yellow accent
+    static constexpr uint32_t COL_F1_PURPLE = 0xF81F;   // Fastest lap magenta (R=31,G=0,B=31 — zero green)
     static constexpr uint32_t COL_ACCENT = 0x00FF00;    // Green for gains
     static constexpr uint32_t COL_DIVIDER = 0x333333;   // Row separators
 

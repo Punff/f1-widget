@@ -56,6 +56,18 @@ struct Session
     char dateUtc[32]; // "2026-03-15T06:00:00Z"
 };
 
+struct SessionResult
+{
+    int position;
+    int grid;
+    int laps;
+    int points;
+    char driverCode[4];
+    char constructorName[64];
+    char timeOrStatus[28];
+    bool isFastestLap;
+};
+
 struct RaceMeeting
 {
     int round;

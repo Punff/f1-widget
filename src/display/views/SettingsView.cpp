@@ -10,7 +10,8 @@ extern TimeManager *timeMgr;
 static constexpr uint32_t SETTINGS_MAGIC = 0x5E771;
 static constexpr const char *SETTINGS_PATH = "/settings.bin";
 
-static constexpr int COL_LABEL = 15;
+static constexpr int COL_ICON = 15;
+static constexpr int COL_LABEL = 70;
 static constexpr int COL_VALUE = 465;
 
 void SettingsView::loadSettings(SettingsData &s)
@@ -71,7 +72,6 @@ void SettingsView::drawHeader()
 
 void SettingsView::drawRow(int dataIdx, bool selected, int dist)
 {
-    (void)dist;
     if (dataIdx < 0 || dataIdx >= SET_COUNT)
         return;
 
@@ -82,9 +82,25 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
         _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
     }
 
+    uint32_t dim = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
+
+    const char *icon = "";
+    switch ((SettingIdx)dataIdx)
+    {
+    case SET_BRIGHTNESS: icon = "BRI"; break;
+    case SET_UTC_OFFSET: icon = "UTC"; break;
+    case SET_SYSINFO:    icon = "SYS"; break;
+    case SET_CLEAR_CACHE: icon = "CLR"; break;
+    case SET_ABOUT:      icon = "ABT"; break;
+    }
+
     _rowSprite->setTextDatum(middle_left);
+    _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+    _rowSprite->setTextColor(selected ? UI::COL_F1_RED : dim);
+    _rowSprite->drawString(icon, COL_ICON, _rowH / 2);
+
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(UI::COL_TEXT);
+    _rowSprite->setTextColor(dim);
 
     switch ((SettingIdx)dataIdx)
     {

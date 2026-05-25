@@ -87,10 +87,14 @@ void DisplayManager::setView(IView *view)
     if (_currentView)
         _currentView->onExit();
 
-    // Clean up WeekendView when navigating away from it
-    if (_currentView == _weekendView) {
+    // Keep WeekendView alive when entering SessionResultsView
+    if (_currentView == _weekendView && view != _sessionResultsView) {
         delete _weekendView;
         _weekendView = nullptr;
+    }
+    if (_currentView == _sessionResultsView) {
+        delete _sessionResultsView;
+        _sessionResultsView = nullptr;
     }
 
     _currentView = view;
@@ -165,8 +169,20 @@ void DisplayManager::launchWeekendView(const RaceMeeting *meeting) {
         delete _weekendView;
     }
     _previousView = _currentView;
+    _sessionResultsView = nullptr;
     _weekendView = new WeekendView(_tft, this, meeting);
     setView(_weekendView);
+}
+
+void DisplayManager::launchSessionResultsView(const RaceMeeting *meeting, int sessionIdx) {
+    if (_sessionResultsView) {
+        delete _sessionResultsView;
+    }
+    _previousView = _currentView;
+    _sessionResultsView = new SessionResultsView(_tft, this,
+        meeting->round, meeting->officialName, meeting->circuit.shortName,
+        meeting->sessions[sessionIdx].name);
+    setView(_sessionResultsView);
 }
 
 LGFX *DisplayManager::tft() const { return _tft; }

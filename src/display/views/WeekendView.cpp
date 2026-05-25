@@ -167,6 +167,23 @@ void WeekendView::tick() {
     }
 }
 
+void WeekendView::onPress() {
+    if (!_meeting || _meeting->sessionCount == 0) return;
+    if (_cursor < 0 || _cursor >= _meeting->sessionCount) return;
+
+    const Session &s = _meeting->sessions[_cursor];
+    const char *name = s.name;
+
+    // Only Race, Qualifying, and Sprint have structured results
+    if (strcmp(name, "Race") == 0 || strcmp(name, "Qualifying") == 0 || strcmp(name, "Sprint") == 0)
+    {
+        int rowY = UI::HEADER_H + (_cursor - _scrollOffset) * _rowH;
+        _tft->fillRect(0, rowY, UI::SCREEN_W, _rowH, UI::COL_BG_SEL);
+        delay(40);
+        _dm->launchSessionResultsView(_meeting, _cursor);
+    }
+}
+
 void WeekendView::onLongPress() {
     _dm->returnToMenu();
 }

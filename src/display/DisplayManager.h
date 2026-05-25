@@ -3,6 +3,7 @@
 #include "views/UI.h"
 #include "UI_Fonts.h"
 #include "views/WeekendView.h"
+#include "views/SessionResultsView.h"
 #include "views/Header.h"
 #include "views/Footer.h"
 
@@ -32,6 +33,7 @@ public:
     void registerView(MenuItem item, IView *view);
     void launchMenuItem(int menuIndex);
     void launchWeekendView(const RaceMeeting *meeting);
+    void launchSessionResultsView(const RaceMeeting *meeting, int sessionIdx);
 
     LGFX *tft() const;
     LGFX_Sprite *rowSprite() const;
@@ -50,4 +52,5 @@ private:
     IView *_menuView;
     IView *_viewRegistry[REGISTRY_SIZE];
     WeekendView *_weekendView = nullptr;
+    SessionResultsView *_sessionResultsView = nullptr;
 };

@@ -2,44 +2,52 @@
 #include "../DisplayManager.h"
 #include "../../../include/UI_Fonts.h"
 
+static constexpr int COL_ICON = 15;
+static constexpr int COL_NAME = 70;
+
 MenuView::MenuView(LGFX *tft, DisplayManager *dm)
-    : _tft(tft), _dm(dm), _cursor(0) {}
+    : ScrollListView(tft, dm, 46, 5, 2) {}
 
-void MenuView::onEnter()
+int MenuView::dataSize() const
 {
-    _cursor = 0;
-    _tft->fillScreen(UI::COL_BG);
-    drawMenu();
+    return (int)MenuItem::COUNT;
 }
 
-void MenuView::render()
+void MenuView::drawHeader()
 {
-    // No redraw needed - only redraw on input
+    _dm->header()->draw("WIDGET");
 }
 
-void MenuView::tick()
+void MenuView::drawRow(int dataIdx, bool selected, int dist)
 {
-    // Nothing to do
-}
-
-void MenuView::onTurnRight()
-{
-    if (_cursor < (int)MenuItem::COUNT - 1)
+    if (selected)
     {
-        int oldCursor = _cursor;
-        _cursor++;
-        partialRedraw(oldCursor);
+        _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
+        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_F1_RED);
+        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
     }
+
+    uint32_t dim = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
+
+    // Icon
+    _rowSprite->setTextDatum(middle_left);
+    _rowSprite->setFont(selected ? UI::Fonts::DATA_ACCENT : UI::Fonts::LABEL_SMALL);
+    _rowSprite->setTextColor(selected ? UI::COL_F1_RED : dim);
+    _rowSprite->drawString(_getMenuIcon(dataIdx), COL_ICON, _rowH / 2);
+
+    // Name
+    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
+    _rowSprite->setTextColor(dim);
+    _rowSprite->drawString(_getMenuName(dataIdx), COL_NAME, _rowH / 2);
 }
 
-void MenuView::onTurnLeft()
+void MenuView::drawFooter()
 {
-    if (_cursor > 0)
-    {
-        int oldCursor = _cursor;
-        _cursor--;
-        partialRedraw(oldCursor);
-    }
+    _dm->footer()->draw();
+    _tft->setFont(UI::Fonts::LABEL_SMALL);
+    _tft->setTextColor(UI::COL_MUTED);
+    _tft->setTextDatum(bottom_right);
+    _tft->drawString("v1.0.26", UI::SCREEN_W - 10, UI::SCREEN_H - 5);
 }
 
 void MenuView::onPress()
@@ -47,129 +55,28 @@ void MenuView::onPress()
     _dm->launchMenuItem(_cursor);
 }
 
-void MenuView::drawMenu()
-{
-    _tft->startWrite();
-
-    _dm->header()->draw("WIDGET");
-
-    // Menu items
-    int startY = UI::HEADER_H + 20;
-    int itemHeight = 45;
-
-    for (int i = 0; i < (int)MenuItem::COUNT; i++)
-    {
-        drawMenuItem(i, i == _cursor);
-    }
-
-    // Footer
-    _dm->footer()->draw();
-    _tft->setFont(UI::Fonts::LABEL_SMALL);
-    _tft->setTextColor(UI::COL_MUTED);
-    _tft->setTextDatum(bottom_right);
-    _tft->drawString("v1.0.26", UI::SCREEN_W - 10, UI::SCREEN_H - 5);
-
-    _tft->endWrite();
-}
-
-void MenuView::drawMenuItem(int index, bool selected)
-{
-    int startY = UI::HEADER_H + 20;
-    int itemHeight = 45;
-    int yPos = startY + (index * itemHeight);
-
-    // Selection background
-    if (selected)
-    {
-        _tft->fillRect(0, yPos, UI::SCREEN_W, itemHeight - 2, UI::COL_BG_SEL);
-        // Red accent bar on left
-        _tft->fillRect(0, yPos, 6, itemHeight - 2, UI::COL_F1_RED);
-        // Right-side stripe for selected item
-        _tft->fillRect(UI::SCREEN_W - 6, yPos, 6, itemHeight - 2, UI::COL_F1_RED);
-    }
-    else
-    {
-        _tft->fillRect(0, yPos, UI::SCREEN_W, itemHeight - 2, UI::COL_BG);
-    }
-
-    // Menu icon (first 2 chars)
-    _tft->setTextDatum(middle_left);
-    if (selected)
-    {
-        _tft->setTextColor(UI::COL_F1_RED);
-        _tft->setFont(UI::Fonts::DATA_ACCENT);
-    }
-    else
-    {
-        _tft->setTextColor(UI::COL_MUTED);
-        _tft->setFont(UI::Fonts::LABEL_SMALL);
-    }
-    _tft->drawString(_getMenuIcon(index), 14, yPos + (itemHeight / 2));
-
-    // Menu name
-    if (selected)
-    {
-        _tft->setTextColor(UI::COL_TEXT);
-        _tft->setFont(UI::Fonts::BODY_MAIN);
-    }
-    else
-    {
-        _tft->setTextColor(UI::COL_TEXT_DIM);
-        _tft->setFont(UI::Fonts::LABEL_SMALL);
-    }
-    _tft->drawString(_getMenuName(index), 75, yPos + (itemHeight / 2));
-}
-
-void MenuView::partialRedraw(int oldCursor)
-{
-    _tft->startWrite();
-
-    // Redraw old selected item (now unselected)
-    if (oldCursor >= 0 && oldCursor < (int)MenuItem::COUNT)
-    {
-        drawMenuItem(oldCursor, false);
-    }
-
-    // Redraw new selected item
-    drawMenuItem(_cursor, true);
-
-    _tft->endWrite();
-}
-
-const char *MenuView::_getMenuName(int index)
+const char *MenuView::_getMenuName(int index) const
 {
     switch (static_cast<MenuItem>(index))
     {
-    case MenuItem::DRIVER_STANDINGS:
-        return "Driver Standings";
-    case MenuItem::CONSTRUCTOR_STANDINGS:
-        return "Constructor Standings";
-    case MenuItem::CALENDAR:
-        return "Season Calendar";
-    case MenuItem::NEWS:
-        return "Latest News";
-    case MenuItem::SETTINGS:
-        return "System Settings";
-    default:
-        return "Unknown";
+    case MenuItem::DRIVER_STANDINGS:      return "Driver Standings";
+    case MenuItem::CONSTRUCTOR_STANDINGS: return "Constructor Standings";
+    case MenuItem::CALENDAR:              return "Season Calendar";
+    case MenuItem::NEWS:                  return "Latest News";
+    case MenuItem::SETTINGS:              return "System Settings";
+    default:                              return "Unknown";
     }
 }
 
-const char *MenuView::_getMenuIcon(int index)
+const char *MenuView::_getMenuIcon(int index) const
 {
     switch (static_cast<MenuItem>(index))
     {
-    case MenuItem::DRIVER_STANDINGS:
-        return "DS";
-    case MenuItem::CONSTRUCTOR_STANDINGS:
-        return "CS";
-    case MenuItem::CALENDAR:
-        return "CAL";
-    case MenuItem::NEWS:
-        return "NEW";
-    case MenuItem::SETTINGS:
-        return "SET";
-    default:
-        return "??";
+    case MenuItem::DRIVER_STANDINGS:      return "DS";
+    case MenuItem::CONSTRUCTOR_STANDINGS: return "CS";
+    case MenuItem::CALENDAR:              return "CAL";
+    case MenuItem::NEWS:                  return "NEW";
+    case MenuItem::SETTINGS:              return "SET";
+    default:                              return "??";
     }
 }
