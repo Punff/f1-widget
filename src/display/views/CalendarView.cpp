@@ -7,7 +7,6 @@
 
 extern DataCache *cache;
 extern TimeManager *timeMgr;
-static int nextRoundIdx = -1;
 
 // Column offsets
 static constexpr int COL_RND = 12;
@@ -16,39 +15,45 @@ static constexpr int COL_DATE = 360;
 static constexpr int COL_STATUS = 468;
 
 CalendarView::CalendarView(LGFX *tft, DisplayManager *dm)
-    : ScrollListView(tft, dm, 46, 5, 2), _lastFooterSec(0)
+    : ScrollListView(tft, dm, 46, 5, 2), _lastFooterSec(0), _nextRoundIdx(-1)
 {
 }
 
 void CalendarView::onEnter()
 {
-    nextRoundIdx = -1;
+    _nextRoundIdx = -1;
+    _nextRoundTime = 0;
+    _sessionTimes.clear();
+
     time_t nowLocal = timeMgr->getLocalTime();
+    int utcOffset = timeMgr->getUTCOffset() * 3600;
 
     for (int i = 0; i < (int)cache->calendar.size(); i++)
     {
         const auto &rm = cache->calendar[i];
-
         time_t sessionLocal = 0;
+
         if (rm.sessionCount > 0) {
             struct tm st;
             strptime(rm.sessions[0].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
-            sessionLocal = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
+            sessionLocal = my_timegm(&st) + utcOffset;
         } else {
             struct tm rt;
             strptime(rm.date, "%Y-%m-%d", &rt);
             sessionLocal = mktime(&rt);
         }
 
-        if (sessionLocal > nowLocal)
+        _sessionTimes.push_back(sessionLocal);
+
+        if (_nextRoundIdx < 0 && sessionLocal > nowLocal)
         {
-            nextRoundIdx = i;
-            break;
+            _nextRoundIdx = i;
+            _nextRoundTime = sessionLocal;
         }
     }
 
-    if (nextRoundIdx != -1) {
-        _cursor = nextRoundIdx;
+    if (_nextRoundIdx != -1) {
+        _cursor = _nextRoundIdx;
     } else {
         _cursor = 0;
     }
@@ -78,7 +83,7 @@ void CalendarView::drawRow(int dataIdx, bool selected, int dist)
 {
     if (dataIdx < 0 || dataIdx >= (int)cache->calendar.size()) return;
     const auto &rm = cache->calendar[dataIdx];
-    bool isNext = (dataIdx == nextRoundIdx);
+    bool isNext = (dataIdx == _nextRoundIdx);
     uint32_t dim = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
 
     if (selected) {
@@ -87,7 +92,7 @@ void CalendarView::drawRow(int dataIdx, bool selected, int dist)
         _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
     } else if (isNext) {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, 0x1000);
-        _rowSprite->drawFastVLine(0, 0, _rowH, UI::COL_F1_RED);
+        _rowSprite->fillRect(0, 0, 1, _rowH, UI::COL_F1_RED);
     }
 
     // Round
@@ -110,7 +115,7 @@ void CalendarView::drawRow(int dataIdx, bool selected, int dist)
         _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
         _rowSprite->setTextColor(UI::COL_F1_RED);
         _rowSprite->drawString("NEXT", COL_STATUS, _rowH / 2);
-    } else if (dataIdx > nextRoundIdx && nextRoundIdx != -1) {
+    } else if (dataIdx > _nextRoundIdx && _nextRoundIdx != -1) {
         _rowSprite->setTextDatum(middle_right);
         _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
         _rowSprite->setTextColor(dim);
@@ -139,22 +144,11 @@ void CalendarView::drawFooter()
 {
     _dm->footer()->draw();
 
-    if (nextRoundIdx < 0 || nextRoundIdx >= (int)cache->calendar.size()) return;
+    if (_nextRoundIdx < 0 || _nextRoundIdx >= (int)cache->calendar.size()) return;
 
-    const auto &next = cache->calendar[nextRoundIdx];
+    const auto &next = cache->calendar[_nextRoundIdx];
     time_t nowLocal = timeMgr->getLocalTime();
-    time_t sessionLocal = 0;
-    if (next.sessionCount > 0) {
-        struct tm st;
-        strptime(next.sessions[0].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
-        sessionLocal = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
-    } else {
-        struct tm rt;
-        strptime(next.date, "%Y-%m-%d", &rt);
-        sessionLocal = mktime(&rt);
-    }
-
-    time_t diff = sessionLocal - nowLocal;
+    time_t diff = _nextRoundTime - nowLocal;
     if (diff < 0) diff = 0;
 
     char buf[40];
@@ -170,19 +164,9 @@ void CalendarView::tick()
     if (now != _lastFooterSec) {
         _lastFooterSec = now;
 
-        if (nextRoundIdx < 0 || nextRoundIdx >= (int)cache->calendar.size()) return;
-        const auto &next = cache->calendar[nextRoundIdx];
-        time_t sessionLocal = 0;
-        if (next.sessionCount > 0) {
-            struct tm st;
-            strptime(next.sessions[0].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
-            sessionLocal = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
-        } else {
-            struct tm rt;
-            strptime(next.date, "%Y-%m-%d", &rt);
-            sessionLocal = mktime(&rt);
-        }
-        time_t diff = sessionLocal - now;
+        if (_nextRoundIdx < 0 || _nextRoundIdx >= (int)cache->calendar.size()) return;
+        const auto &next = cache->calendar[_nextRoundIdx];
+        time_t diff = _nextRoundTime - now;
         if (diff < 0) diff = 0;
         char buf[40];
         char cd[24];

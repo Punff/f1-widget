@@ -1,6 +1,7 @@
 #pragma once
 #include "ScrollListView.h"
 #include "../../data/DataCache.h"
+#include <vector>
 
 class WeekendView : public ScrollListView {
 public:
@@ -17,4 +18,5 @@ protected:
 private:
     const RaceMeeting *_meeting;
     unsigned long _lastFooterSec = 0;
+    std::vector<time_t> _sessionTimes;
 };

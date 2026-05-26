@@ -24,6 +24,8 @@ private:
     uint32_t _glowColor;
     unsigned long _glowMs;
     int _lastClockMin;
+    int _lastClockHour;
+    bool _clockStale;
 
     void drawClock(TimeManager *tm);
     void drawEncoderDot();

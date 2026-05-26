@@ -20,6 +20,14 @@ void WeekendView::onEnter() {
     if (_meeting) {
         Serial.printf("[WEEKEND] Entering view for %s (Key: %d, Sessions: %d)\n",
             _meeting->officialName, _meeting->meetingKey, _meeting->sessionCount);
+
+        _sessionTimes.clear();
+        int utcOffset = timeMgr->getUTCOffset() * 3600;
+        for (int i = 0; i < _meeting->sessionCount; i++) {
+            struct tm st;
+            strptime(_meeting->sessions[i].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
+            _sessionTimes.push_back(my_timegm(&st) + utcOffset);
+        }
     } else {
         Serial.println("[WEEKEND] ERROR: Meeting pointer is null!");
     }
@@ -64,17 +72,11 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist) {
 
     const Session &s = _meeting->sessions[dataIdx];
     time_t nowLocal = timeMgr->getLocalTime();
-
-    // Determine session local time and status
-    struct tm sessionTm;
-    strptime(s.dateUtc, "%Y-%m-%dT%H:%M:%SZ", &sessionTm);
-    time_t sessionLocal = my_timegm(&sessionTm) + (timeMgr->getUTCOffset() * 3600);
+    time_t sessionLocal = (dataIdx < (int)_sessionTimes.size()) ? _sessionTimes[dataIdx] : 0;
 
     int nextIdx = -1;
     for (int i = 0; i < _meeting->sessionCount; i++) {
-        struct tm st;
-        strptime(_meeting->sessions[i].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
-        time_t sl = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
+        time_t sl = (i < (int)_sessionTimes.size()) ? _sessionTimes[i] : 0;
         if (sl > nowLocal) { nextIdx = i; break; }
     }
 
@@ -154,9 +156,7 @@ void WeekendView::drawFooter() {
     const char *nextSessionName = nullptr;
 
     for (int i = 0; i < _meeting->sessionCount; i++) {
-        struct tm st;
-        strptime(_meeting->sessions[i].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
-        time_t sl = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
+        time_t sl = (i < (int)_sessionTimes.size()) ? _sessionTimes[i] : 0;
         if (sl > nowLocal) {
             nextSessionTime = sl;
             nextSessionName = _meeting->sessions[i].name;
@@ -189,9 +189,7 @@ void WeekendView::tick() {
     const char *nextSessionName = nullptr;
 
     for (int i = 0; i < _meeting->sessionCount; i++) {
-        struct tm st;
-        strptime(_meeting->sessions[i].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
-        time_t sl = my_timegm(&st) + (timeMgr->getUTCOffset() * 3600);
+        time_t sl = (i < (int)_sessionTimes.size()) ? _sessionTimes[i] : 0;
         if (sl > now) {
             nextSessionTime = sl;
             nextSessionName = _meeting->sessions[i].name;

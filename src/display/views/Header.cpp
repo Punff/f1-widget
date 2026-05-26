@@ -5,7 +5,7 @@
 #include "../../time/TimeManager.h"
 
 Header::Header(LGFX *tft)
-    : _tft(tft), _glowColor(0), _glowMs(0), _lastClockMin(-1) {}
+    : _tft(tft), _glowColor(0), _glowMs(0), _lastClockMin(-1), _lastClockHour(-1), _clockStale(false) {}
 
 void Header::draw(const char *title, const char *subtitle, const char *prefix)
 {
@@ -50,23 +50,32 @@ void Header::tick(TimeManager *tm)
 
 void Header::drawClock(TimeManager *tm)
 {
-    if (!tm || !tm->isSynced()) return;
+    if (!tm) return;
 
+    bool synced = tm->isSynced();
     time_t t = tm->getLocalTime();
     struct tm lt;
     localtime_r(&t, &lt);
 
-    if (lt.tm_min == _lastClockMin) return;
-    _lastClockMin = lt.tm_min;
+    if (synced) {
+        if (lt.tm_min == _lastClockMin && !_clockStale) return;
+        _lastClockMin = lt.tm_min;
+        _lastClockHour = lt.tm_hour;
+        _clockStale = false;
+    } else {
+        if (_clockStale) return;
+        _clockStale = true;
+    }
 
-    // Clock area: left of encoder dot
     int clockX = H_DOT_X - 15;
     _tft->fillRect(clockX - CLOCK_W, H_CENTER_Y - CLOCK_H/2, CLOCK_W, CLOCK_H, UI::COL_BG);
 
     char buf[6];
-    snprintf(buf, sizeof(buf), "%02d:%02d", lt.tm_hour, lt.tm_min);
+    int h = synced ? lt.tm_hour : _lastClockHour;
+    int m = synced ? lt.tm_min : _lastClockMin;
+    snprintf(buf, sizeof(buf), "%02d:%02d", h, m);
     _tft->setTextDatum(middle_right);
-    _tft->setTextColor(UI::COL_TEXT);
+    _tft->setTextColor(synced ? UI::COL_TEXT : UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
     _tft->drawString(buf, clockX, H_CENTER_Y);
 }

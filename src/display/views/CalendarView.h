@@ -1,6 +1,7 @@
 #pragma once
 #include "ScrollListView.h"
 #include <time.h>
+#include <vector>
 
 class CalendarView : public ScrollListView
 {
@@ -19,4 +20,7 @@ public:
 
 private:
     time_t _lastFooterSec;
+    int _nextRoundIdx;
+    std::vector<time_t> _sessionTimes;
+    time_t _nextRoundTime;
 };

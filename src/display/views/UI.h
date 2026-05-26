@@ -35,7 +35,7 @@ namespace UI
     static constexpr uint32_t COL_MUTED = 0x777777;     // Subtle grey
     static constexpr uint32_t COL_F1_RED = 0xFF0000;    // Pure F1 red
     static constexpr uint32_t COL_F1_YELLOW = 0xFFD700; // F1 yellow accent
-    static constexpr uint32_t COL_F1_PURPLE = 0xFF00FF; // Fastest lap magenta
+    static constexpr uint32_t COL_F1_PURPLE = 0xAA00FF; // Fastest lap purple
     static constexpr uint32_t COL_ACCENT = 0x00FF00;    // Green for gains
     static constexpr uint32_t COL_DIVIDER = 0x333333;   // Row separators
 
@@ -48,15 +48,9 @@ namespace UI
     static constexpr int PAD_X = 12;
     static constexpr int PAD_Y = 8;
 
-    // Animation
-    static constexpr int SCROLL_DURATION = 200; // ms for smooth scroll
-    static constexpr float DIM_RATE = 0.22f;    // Brightness drop per row
-    static constexpr float MIN_BRIGHT = 0.15f;  // Never fully black
-
-    // Shared sprite max row height — all views use same size to prevent heap fragmentation
+    // Shared sprite max row height — all views use same sprite to prevent heap fragmentation
     static constexpr int MAX_ROW_H = 50;
 
     // Encoder visual feedback
-    static constexpr int ENCODER_PULSE_MS = 30;           // Shorter, subtle flash
-    static constexpr uint32_t ENCODER_FLASH_COL = 0x6800; // Dark red accent
+    static constexpr int ENCODER_PULSE_MS = 30;
 }

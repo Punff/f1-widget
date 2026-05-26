@@ -108,7 +108,7 @@ void SessionResultsView::drawRow(int dataIdx, bool selected, int dist)
     const auto &sr = _results[dataIdx];
 
     const Driver *driver = nullptr;
-    uint16_t teamColor = 0x4208;
+    uint32_t teamColor = UI::COL_MUTED;
     for (const auto &ds : cache->driverStandings)
     {
         if (strcmp(ds.driver.acronym, sr.driverCode) == 0)
@@ -168,7 +168,7 @@ void SessionResultsView::drawFooter()
     uint32_t color;
     if (_cursor == 0)
     {
-        color = 0x4208;
+        color = UI::COL_MUTED;
         const char *winnerCode = "";
         for (const auto &ds : cache->driverStandings)
         {

@@ -23,7 +23,8 @@
 #define OPENF1_API_BASE_URL "https://api.openf1.org/v1"
 #define API_UPDATE_INTERVAL 600000
 
-// Display dimensions (LovyanGFX Panel_ST7796)
+// Display dimensions — physical panel is 320x480 portrait, rotated 90° to 480x320 landscape
+// Runtime uses UI::SCREEN_W=480, UI::SCREEN_H=320 (LGFX rotation 1)
 #define SCREEN_WIDTH 320
 #define SCREEN_HEIGHT 480
 
