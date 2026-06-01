@@ -22,13 +22,15 @@ void Header::draw(const char *title, const char *subtitle, const char *prefix)
     // 2. Title/Subtitle (Middle)
     int titleX = 100;
     _tft->setTextColor(UI::COL_TEXT);
-    _tft->setFont(UI::Fonts::BODY_MAIN);
-    if (subtitle) {
+    if (subtitle && strlen(subtitle) > 0) {
+        _tft->setFont(UI::Fonts::BODY_MAIN);
         _tft->drawString(title, titleX, H_CENTER_Y - 8);
+        
         _tft->setTextColor(UI::COL_MUTED);
         _tft->setFont(UI::Fonts::LABEL_SMALL);
         _tft->drawString(subtitle, titleX, H_CENTER_Y + 12);
     } else {
+        _tft->setFont(UI::Fonts::BODY_MAIN);
         _tft->drawString(title, titleX, H_CENTER_Y);
     }
 
@@ -71,11 +73,11 @@ void Header::drawClock(TimeManager *tm)
     _tft->fillRect(clockX - CLOCK_W, H_CENTER_Y - CLOCK_H/2, CLOCK_W, CLOCK_H, UI::COL_BG);
 
     char buf[6];
-    int h = synced ? lt.tm_hour : _lastClockHour;
-    int m = synced ? lt.tm_min : _lastClockMin;
-    snprintf(buf, sizeof(buf), "%02d:%02d", h, m);
+    if (_lastClockHour == -1) snprintf(buf, sizeof(buf), "--:--");
+    else snprintf(buf, sizeof(buf), "%02d:%02d", _lastClockHour, _lastClockMin);
+    
     _tft->setTextDatum(middle_right);
-    _tft->setTextColor(synced ? UI::COL_TEXT : UI::COL_MUTED);
+    _tft->setTextColor(UI::COL_TEXT);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
     _tft->drawString(buf, clockX, H_CENTER_Y);
 }

@@ -27,16 +27,16 @@ namespace UI
     static constexpr int CONTENT_H = FOOTER_Y - HEADER_H;
 
     // F1 TN-Optimized Palette (High Contrast) — 24-bit RGB (0xRRGGBB)
-    static constexpr uint32_t COL_BG = 0x000000;        // Pure black
+    static constexpr uint32_t COL_BG = 0x081008;        // Dark slate
     static constexpr uint32_t COL_BG_SEL = 0x2A2A2A;    // Selected row (brighter for TN)
     static constexpr uint32_t COL_BG_ALT = 0x0D0D0D;    // Alternate row
     static constexpr uint32_t COL_TEXT = 0xFFFFFF;      // Pure white
     static constexpr uint32_t COL_TEXT_DIM = 0xAAAAAA;  // Dimmed text
-    static constexpr uint32_t COL_MUTED = 0x777777;     // Subtle grey
-    static constexpr uint32_t COL_F1_RED = 0xFF0000;    // Pure F1 red
+    static constexpr uint32_t COL_MUTED = 0x787C78;     // Chassis grey
+    static constexpr uint32_t COL_F1_RED = 0xE00000;    // Neon red
     static constexpr uint32_t COL_F1_YELLOW = 0xFFD700; // F1 yellow accent
     static constexpr uint32_t COL_F1_PURPLE = 0xAA00FF; // Fastest lap purple
-    static constexpr uint32_t COL_ACCENT = 0x00FF00;    // Green for gains
+    static constexpr uint32_t COL_ACCENT = 0xF0D400;    // Podium yellow
     static constexpr uint32_t COL_DIVIDER = 0x333333;   // Row separators
 
     static constexpr int FONT_TINY = 1;

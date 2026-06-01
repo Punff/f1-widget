@@ -106,10 +106,12 @@ void DisplayManager::setView(IView *view)
 
     // Keep WeekendView alive when entering SessionResultsView
     if (_currentView == _weekendView && view != _sessionResultsView) {
+        if (_previousView == _weekendView) _previousView = nullptr;
         delete _weekendView;
         _weekendView = nullptr;
     }
     if (_currentView == _sessionResultsView) {
+        if (_previousView == _sessionResultsView) _previousView = nullptr;
         delete _sessionResultsView;
         _sessionResultsView = nullptr;
     }

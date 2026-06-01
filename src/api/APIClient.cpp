@@ -32,8 +32,10 @@ bool APIClient::syncDriversAndStandings()
     // 1. Drivers from OpenF1 — fetch body first, close HTTP, THEN parse
     String driverJson;
     {
+        WiFiClientSecure client;
+        client.setInsecure();
         HTTPClient http;
-        http.begin("https://api.openf1.org/v1/drivers?session_key=latest");
+        http.begin(client, "https://api.openf1.org/v1/drivers?session_key=latest");
         if (http.GET() == HTTP_CODE_OK)
             driverJson = http.getString();
     }
@@ -49,12 +51,12 @@ bool APIClient::syncDriversAndStandings()
             {
                 DriverStanding ds;
                 ds.driver.number = d["driver_number"];
-                strlcpy(ds.driver.firstName, d["first_name"] | "", 32);
-                strlcpy(ds.driver.lastName, d["last_name"] | "", 32);
-                strlcpy(ds.driver.fullName, d["full_name"] | "", 64);
-                strlcpy(ds.driver.broadcastName, d["broadcast_name"] | "", 32);
-                strlcpy(ds.driver.acronym, d["name_acronym"] | "", 4);
-                strlcpy(ds.driver.team.name, d["team_name"] | "", 64);
+                strlcpy(ds.driver.firstName, d["first_name"] | "", sizeof(ds.driver.firstName));
+                strlcpy(ds.driver.lastName, d["last_name"] | "", sizeof(ds.driver.lastName));
+                strlcpy(ds.driver.fullName, d["full_name"] | "", sizeof(ds.driver.fullName));
+                strlcpy(ds.driver.broadcastName, d["broadcast_name"] | "", sizeof(ds.driver.broadcastName));
+                strlcpy(ds.driver.acronym, d["name_acronym"] | "", sizeof(ds.driver.acronym));
+                strlcpy(ds.driver.team.name, d["team_name"] | "", sizeof(ds.driver.team.name));
                 ds.driver.team.teamColor = DataCache::hexTo565(d["team_colour"]);
                 ds.position = 0;
                 ds.points = 0;
@@ -68,8 +70,10 @@ bool APIClient::syncDriversAndStandings()
     // 2. Standings from Jolpica — fetch body first, close HTTP, THEN parse
     String standingJson;
     {
+        WiFiClientSecure client;
+        client.setInsecure();
         HTTPClient http;
-        http.begin("https://api.jolpi.ca/ergast/f1/" + season + "/driverstandings.json");
+        http.begin(client, "https://api.jolpi.ca/ergast/f1/" + season + "/driverstandings.json");
         if (http.GET() == HTTP_CODE_OK)
             standingJson = http.getString();
     }
@@ -88,7 +92,7 @@ bool APIClient::syncDriversAndStandings()
                 {
                     const char *code = s["Driver"]["code"];
                     if (!code) continue;
-                    int pts = s["points"].as<int>();
+                    float pts = s["points"].as<float>();
                     for (auto &ds : _cache->driverStandings)
                     {
                         if (strcmp(ds.driver.acronym, code) == 0)
@@ -102,6 +106,10 @@ bool APIClient::syncDriversAndStandings()
                 Serial.printf("[SYNC] Matched %d drivers by points\n", matched);
             }
         }
+    }
+
+    if (driverJson.length() == 0 && standingJson.length() == 0) {
+        return false;
     }
 
     // Sort by points descending and assign positions
@@ -121,8 +129,10 @@ bool APIClient::syncConstructors()
 
     String json;
     {
+        WiFiClientSecure client;
+        client.setInsecure();
         HTTPClient http;
-        http.begin("https://api.jolpi.ca/ergast/f1/" + season + "/constructorstandings.json");
+        http.begin(client, "https://api.jolpi.ca/ergast/f1/" + season + "/constructorstandings.json");
         if (http.GET() != HTTP_CODE_OK) return false;
         json = http.getString();
     }
@@ -140,9 +150,9 @@ bool APIClient::syncConstructors()
     {
         ConstructorStanding cs;
         cs.position = s["position"].as<int>();
-        cs.points = s["points"].as<int>();
-        strlcpy(cs.team.name, s["Constructor"]["name"] | "", 64);
-        strlcpy(cs.team.id, s["Constructor"]["constructorId"] | "", 32);
+        cs.points = s["points"].as<float>();
+        strlcpy(cs.team.name, s["Constructor"]["name"] | "", sizeof(cs.team.name));
+        strlcpy(cs.team.id, s["Constructor"]["constructorId"] | "", sizeof(cs.team.id));
 
         // Match color from driver data
         cs.team.teamColor = 0x4208;
@@ -178,8 +188,10 @@ bool APIClient::fetchSessionResults(int round, const char *sessionType, std::vec
 
     String json;
     {
+        WiFiClientSecure client;
+        client.setInsecure();
         HTTPClient http;
-        http.begin(url);
+        http.begin(client, url);
         int httpCode = http.GET();
         if (httpCode != HTTP_CODE_OK) {
             Serial.printf("[FETCH] HTTP failed: %d\n", httpCode);
@@ -215,7 +227,7 @@ bool APIClient::fetchSessionResults(int round, const char *sessionType, std::vec
         sr.position = r["position"].as<int>();
         sr.grid = r["grid"] | 0;
         sr.laps = r["laps"] | 0;
-        sr.points = r["points"].as<int>();
+        sr.points = r["points"].as<float>();
 
         const char *code = r["Driver"]["code"] | "";
         strlcpy(sr.driverCode, code, sizeof(sr.driverCode));
@@ -258,8 +270,10 @@ bool APIClient::syncCalendar()
 
     String raceJson;
     {
+        WiFiClientSecure client;
+        client.setInsecure();
         HTTPClient http;
-        http.begin("https://api.jolpi.ca/ergast/f1/" + season + ".json");
+        http.begin(client, "https://api.jolpi.ca/ergast/f1/" + season + ".json");
         if (http.GET() != HTTP_CODE_OK) return false;
         raceJson = http.getString();
     }
@@ -280,11 +294,11 @@ bool APIClient::syncCalendar()
     {
         RaceMeeting rm;
         rm.round = r["round"].as<int>();
-        strlcpy(rm.date, r["date"] | "", 12);
-        strlcpy(rm.officialName, r["raceName"] | "", 128);
-        strlcpy(rm.circuit.shortName, r["Circuit"]["circuitName"] | "", 64);
-        strlcpy(rm.circuit.location, r["Circuit"]["Location"]["locality"] | "", 64);
-        strlcpy(rm.circuit.countryName, r["Circuit"]["Location"]["country"] | "", 32);
+        strlcpy(rm.date, r["date"] | "", sizeof(rm.date));
+        strlcpy(rm.officialName, r["raceName"] | "", sizeof(rm.officialName));
+        strlcpy(rm.circuit.shortName, r["Circuit"]["circuitName"] | "", sizeof(rm.circuit.shortName));
+        strlcpy(rm.circuit.location, r["Circuit"]["Location"]["locality"] | "", sizeof(rm.circuit.location));
+        strlcpy(rm.circuit.countryName, r["Circuit"]["Location"]["country"] | "", sizeof(rm.circuit.countryName));
         rm.meetingKey = 0;
 
         // Parse embedded sessions from Jolpica
@@ -295,8 +309,8 @@ bool APIClient::syncCalendar()
             JsonVariant sess = r[sKeys[si]];
             if (!sess.isNull())
             {
-                strlcpy(rm.sessions[rm.sessionCount].name, sNames[si], 32);
-                snprintf(rm.sessions[rm.sessionCount].dateUtc, 32, "%sT%s",
+                strlcpy(rm.sessions[rm.sessionCount].name, sNames[si], sizeof(rm.sessions[rm.sessionCount].name));
+                snprintf(rm.sessions[rm.sessionCount].dateUtc, sizeof(rm.sessions[rm.sessionCount].dateUtc), "%sT%s",
                     sess["date"] | "",
                     sess["time"] | "");
                 rm.sessionCount++;
@@ -305,8 +319,8 @@ bool APIClient::syncCalendar()
         // Always add Race from top-level date/time
         if (rm.sessionCount < 6)
         {
-            strlcpy(rm.sessions[rm.sessionCount].name, "Race", 32);
-            snprintf(rm.sessions[rm.sessionCount].dateUtc, 32, "%sT%s",
+            strlcpy(rm.sessions[rm.sessionCount].name, "Race", sizeof(rm.sessions[rm.sessionCount].name));
+            snprintf(rm.sessions[rm.sessionCount].dateUtc, sizeof(rm.sessions[rm.sessionCount].dateUtc), "%sT%s",
                 r["date"] | "",
                 r["time"] | "");
             rm.sessionCount++;
@@ -494,22 +508,20 @@ bool APIClient::fetchNewsFeed()
         const char *end = strstr(p, "</item>");
         if (!end) break;
 
-        NewsArticle *a = new NewsArticle();
-        if (!a) break;
-        memset(a, 0, sizeof(NewsArticle));
+        NewsArticle a;
+        memset(&a, 0, sizeof(NewsArticle));
 
-        extractRSSField(p, "title", a->title, sizeof(a->title));
-        extractRSSDescription(p, "description", a->description, sizeof(a->description));
-        extractRSSDate(p, "pubDate", a->pubDate, sizeof(a->pubDate));
-        extractRSSField(p, "link", a->url, sizeof(a->url));
+        extractRSSField(p, "title", a.title, sizeof(a.title));
+        extractRSSDescription(p, "description", a.description, sizeof(a.description));
+        extractRSSDate(p, "pubDate", a.pubDate, sizeof(a.pubDate));
+        extractRSSField(p, "link", a.url, sizeof(a.url));
 
-        if (strlen(a->title) > 0)
+        if (strlen(a.title) > 0)
         {
-            _cache->newsFeed.push_back(*a);
+            _cache->newsFeed.push_back(a);
             count++;
         }
 
-        delete a;
         p = end + 7;
     }
 

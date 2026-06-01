@@ -11,7 +11,7 @@ static constexpr int COL_NAME = 65;
 static constexpr int COL_PTS = 465;
 
 ConstructorStandingsView::ConstructorStandingsView(LGFX *tft, DisplayManager *dm)
-    : ScrollListView(tft, dm, 48, 5, 2) // RowH=48px, 5 rows, center at index 2
+    : ScrollListView(tft, dm, 46, 5, 2) // RowH=46px, 5 rows, center at index 2
 {
 }
 
@@ -70,7 +70,10 @@ void ConstructorStandingsView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->setTextDatum(middle_right);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(tc);
-    _rowSprite->drawNumber(cs.points, COL_PTS, _rowH / 2);
+    char ptsStr[16];
+    if (cs.points == (int)cs.points) snprintf(ptsStr, sizeof(ptsStr), "%d", (int)cs.points);
+    else snprintf(ptsStr, sizeof(ptsStr), "%.1f", cs.points);
+    _rowSprite->drawString(ptsStr, COL_PTS, _rowH / 2);
 }
 
 void ConstructorStandingsView::drawFooter()
@@ -82,19 +85,21 @@ void ConstructorStandingsView::drawFooter()
 
     const auto &sel = cache->constructorStandings[_cursor];
     const auto &leader = cache->constructorStandings[0];
-    int gap = leader.points - sel.points;
+    float gap = leader.points - sel.points;
 
     char buf[48];
     uint32_t color;
     if (_cursor == 0)
     {
-        color = sel.team.teamColor;
+        uint16_t tc = sel.team.teamColor;
+        color = ((tc & 0xF800) << 8) | ((tc & 0x07E0) << 5) | ((tc & 0x001F) << 3);
         snprintf(buf, sizeof(buf), "CS \xc2\xb7 P1: %s", sel.team.name);
     }
     else
     {
         color = UI::COL_TEXT_DIM;
-        snprintf(buf, sizeof(buf), "CS \xc2\xb7 Gap: +%d", gap);
+        if (gap == (int)gap) snprintf(buf, sizeof(buf), "CS \xc2\xb7 Gap: +%d", (int)gap);
+        else snprintf(buf, sizeof(buf), "CS \xc2\xb7 Gap: +%.1f", gap);
     }
 
     _dm->footer()->drawCenter(buf, color);
@@ -103,13 +108,11 @@ void ConstructorStandingsView::drawFooter()
 void ConstructorStandingsView::onTurnRight()
 {
     ScrollListView::onTurnRight();
-    drawFooter();
 }
 
 void ConstructorStandingsView::onTurnLeft()
 {
     ScrollListView::onTurnLeft();
-    drawFooter();
 }
 
 void ConstructorStandingsView::onLongPress()

@@ -34,13 +34,15 @@ void CalendarView::onEnter()
         time_t sessionLocal = 0;
 
         if (rm.sessionCount > 0) {
-            struct tm st;
-            strptime(rm.sessions[0].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st);
-            sessionLocal = my_timegm(&st) + utcOffset;
+            struct tm st = {0};
+            if (strptime(rm.sessions[0].dateUtc, "%Y-%m-%dT%H:%M:%SZ", &st)) {
+                sessionLocal = my_timegm(&st) + utcOffset;
+            }
         } else {
-            struct tm rt;
-            strptime(rm.date, "%Y-%m-%d", &rt);
-            sessionLocal = mktime(&rt);
+            struct tm rt = {0};
+            if (strptime(rm.date, "%Y-%m-%d", &rt)) {
+                sessionLocal = my_timegm(&rt) + utcOffset;
+            }
         }
 
         _sessionTimes.push_back(sessionLocal);
@@ -120,6 +122,11 @@ void CalendarView::drawRow(int dataIdx, bool selected, int dist)
         _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
         _rowSprite->setTextColor(dim);
         _rowSprite->drawString("UPCOMING", COL_STATUS, _rowH / 2);
+    } else if (dataIdx < _nextRoundIdx || _nextRoundIdx == -1) {
+        _rowSprite->setTextDatum(middle_right);
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
+        _rowSprite->setTextColor(dim);
+        _rowSprite->drawString("DONE", COL_STATUS, _rowH / 2);
     }
 
     // Date

@@ -14,7 +14,7 @@ static constexpr int COL_PTS = 465;
 SessionResultsView::SessionResultsView(LGFX *tft, DisplayManager *dm, int round,
                                        const char *officialName, const char *circuitName,
                                        const char *sessionName)
-    : ScrollListView(tft, dm, 48, 5, 2),
+    : ScrollListView(tft, dm, 46, 5, 2),
       _meetingRound(round),
       _fetched(false), _fetchFailed(false)
 {
@@ -63,34 +63,21 @@ void SessionResultsView::onEnter()
     }
 
     fullRedraw();
-    drawFooter();
 }
 
 void SessionResultsView::drawHeader()
 {
-    _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
-
     char roundStr[8];
     snprintf(roundStr, sizeof(roundStr), "R%02d", _meetingRound);
-    _tft->setTextDatum(top_left);
-    _tft->setTextColor(UI::COL_F1_RED);
-    _tft->setFont(UI::Fonts::HEADER_BIG);
-    _tft->drawString(roundStr, 10, 8);
-
-    _tft->setTextColor(UI::COL_TEXT);
-    _tft->setFont(UI::Fonts::BODY_MAIN);
-    _tft->drawString(_sessionName, 95, 12);
+    _dm->header()->draw(_sessionName, _circuitName, roundStr);
 
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
     _tft->drawString("POS", COL_POS, 33);
     _tft->drawString("DRIVER", COL_DRIVER, 33);
-    _tft->drawString("TEAM", COL_TEAM, 33);
     _tft->setTextDatum(top_right);
     _tft->drawString("TIME", COL_TIME, 33);
     _tft->drawString("PTS", COL_PTS, 33);
-
-    _tft->fillRect(0, UI::HEADER_H - 2, UI::SCREEN_W, 2, UI::COL_F1_RED);
 }
 
 void SessionResultsView::drawRow(int dataIdx, bool selected, int dist)
@@ -108,7 +95,7 @@ void SessionResultsView::drawRow(int dataIdx, bool selected, int dist)
     const auto &sr = _results[dataIdx];
 
     const Driver *driver = nullptr;
-    uint32_t teamColor = UI::COL_MUTED;
+    uint16_t teamColor = 0x7BEF; // Default grey in 565
     for (const auto &ds : cache->driverStandings)
     {
         if (strcmp(ds.driver.acronym, sr.driverCode) == 0)
@@ -116,6 +103,14 @@ void SessionResultsView::drawRow(int dataIdx, bool selected, int dist)
             driver = &ds.driver;
             teamColor = ds.driver.team.teamColor;
             break;
+        }
+    }
+    if (teamColor == 0x7BEF) {
+        for (const auto &cs : cache->constructorStandings) {
+            if (strcmp(cs.team.name, sr.constructorName) == 0) {
+                teamColor = (uint16_t)cs.team.teamColor;
+                break;
+            }
         }
     }
 
@@ -151,7 +146,10 @@ void SessionResultsView::drawRow(int dataIdx, bool selected, int dist)
 
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(teamColor);
-    _rowSprite->drawNumber(sr.points, COL_PTS, _rowH / 2);
+    char ptsStr[16];
+    if (sr.points == (int)sr.points) snprintf(ptsStr, sizeof(ptsStr), "%d", (int)sr.points);
+    else snprintf(ptsStr, sizeof(ptsStr), "%.1f", sr.points);
+    _rowSprite->drawString(ptsStr, COL_PTS, _rowH / 2);
 }
 
 void SessionResultsView::drawFooter()
@@ -162,7 +160,7 @@ void SessionResultsView::drawFooter()
 
     const auto &sel = _results[_cursor >= (int)_results.size() ? 0 : _cursor];
     const auto &leader = _results[0];
-    int gap = leader.points - sel.points;
+    float gap = leader.points - sel.points;
 
     char buf[48];
     uint32_t color;
@@ -175,7 +173,8 @@ void SessionResultsView::drawFooter()
             if (strcmp(ds.driver.acronym, leader.driverCode) == 0)
             {
                 winnerCode = ds.driver.acronym;
-                color = ds.driver.team.teamColor;
+                uint16_t tc = ds.driver.team.teamColor;
+                color = ((tc & 0xF800) << 8) | ((tc & 0x07E0) << 5) | ((tc & 0x001F) << 3);
                 break;
             }
         }
@@ -184,7 +183,8 @@ void SessionResultsView::drawFooter()
     else
     {
         color = UI::COL_TEXT_DIM;
-        snprintf(buf, sizeof(buf), "SR \xc2\xb7 Gap: +%d", gap);
+        if (gap == (int)gap) snprintf(buf, sizeof(buf), "SR \xc2\xb7 Gap: +%d", (int)gap);
+        else snprintf(buf, sizeof(buf), "SR \xc2\xb7 Gap: +%.1f", gap);
     }
 
     _dm->footer()->drawCenter(buf, color);
@@ -192,12 +192,10 @@ void SessionResultsView::drawFooter()
 
 void SessionResultsView::onTurnRight() {
     ScrollListView::onTurnRight();
-    drawFooter();
 }
 
 void SessionResultsView::onTurnLeft() {
     ScrollListView::onTurnLeft();
-    drawFooter();
 }
 
 void SessionResultsView::onPress()

@@ -67,8 +67,13 @@ void setup()
     ledcAttachPin(27, 0);
     ledcWrite(0, 255);
 
-    if (!LittleFS.begin(true))
+    if (!LittleFS.begin(true)) {
         Serial.println("[ERROR] LittleFS Failed");
+    }
+
+    SettingsData bootSettings;
+    SettingsView::loadSettings(bootSettings);
+    ledcWrite(0, bootSettings.brightness);
 
     cache = new DataCache();
     cache->begin();
@@ -98,6 +103,7 @@ void setup()
 
         dm->drawBootStatus("Setting clock...");
         timeMgr = new TimeManager();
+        timeMgr->setUTCOffset(bootSettings.utcOffset);
         for (int i = 0; i < 3; i++)
         {
             if (timeMgr->syncNTP())
@@ -112,6 +118,7 @@ void setup()
     {
         dm->drawBootStatus("Offline mode");
         timeMgr = new TimeManager();
+        timeMgr->setUTCOffset(bootSettings.utcOffset);
     }
 
     dm->drawBootStatus("Starting menu...");
@@ -128,7 +135,7 @@ void setup()
     dm->registerView(MenuItem::NEWS, newsView);
     dm->registerView(MenuItem::SETTINGS, settingsView);
 
-    encoder_init(-100, 100, 0);
+    encoder_init(-999999, 999999, 0);
 
     dm->init(menuView);
 

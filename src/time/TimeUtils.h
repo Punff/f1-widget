@@ -4,9 +4,15 @@
 
 static inline time_t my_timegm(struct tm *t)
 {
-    return t->tm_sec + t->tm_min*60 + t->tm_hour*3600 + t->tm_yday*86400 +
-           (t->tm_year-70)*31536000 + ((t->tm_year-69)/4)*86400 -
-           ((t->tm_year-1)/100)*86400 + ((t->tm_year+299)/400)*86400;
+    int year = t->tm_year + 1900;
+    int month = t->tm_mon + 1;
+    if (month <= 2) {
+        year -= 1;
+        month += 12;
+    }
+    int days = 365 * year + year / 4 - year / 100 + year / 400;
+    days += (153 * month - 457) / 5 + t->tm_mday - 306;
+    return (time_t)(days - 719163) * 86400 + t->tm_hour * 3600 + t->tm_min * 60 + t->tm_sec;
 }
 
 // Format a time difference as "Xd Yh Zm", "Xh Ym", or "<1m"

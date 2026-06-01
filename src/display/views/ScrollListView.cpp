@@ -21,7 +21,6 @@ void ScrollListView::onEnter()
         Serial.println("[SPRITE] Buffer null at onEnter");
     }
 
-    _tft->fillScreen(UI::COL_BG);
     fullRedraw();
 }
 

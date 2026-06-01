@@ -189,7 +189,6 @@ void SettingsView::onPress()
     case SET_CLEAR_CACHE:
         cache->clear();
         saveSettings(_settings);
-        LittleFS.remove(SETTINGS_PATH);
         delay(500);
         ESP.restart();
         break;

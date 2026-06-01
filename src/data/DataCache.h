@@ -31,7 +31,7 @@ struct Driver
 struct DriverStanding
 {
     int position;
-    int points;
+    float points;
     int wins;
     Driver driver;
 };
@@ -39,7 +39,7 @@ struct DriverStanding
 struct ConstructorStanding
 {
     int position;
-    int points;
+    float points;
     Team team;
 };
 
@@ -61,7 +61,7 @@ struct SessionResult
     int position;
     int grid;
     int laps;
-    int points;
+    float points;
     char driverCode[4];
     char constructorName[64];
     char timeOrStatus[28];
