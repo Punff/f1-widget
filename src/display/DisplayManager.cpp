@@ -4,6 +4,8 @@
 #include <WiFi.h>
 #include <LittleFS.h>
 
+uint32_t UI::COL_ACCENT = UI::COL_ACCENT_DEFAULT;
+
 extern TimeManager *timeMgr;
 
 void DisplayManager::drawSplash()
@@ -31,7 +33,7 @@ void DisplayManager::drawSplash()
 
     // Text fallback centered on screen
     _tft->setTextDatum(middle_center);
-    _tft->setTextColor(UI::COL_F1_RED);
+    _tft->setTextColor(UI::COL_ACCENT);
     _tft->setFont(UI::Fonts::HEADER_BIG);
     _tft->drawString("F1", UI::SCREEN_W / 2, 140);
 

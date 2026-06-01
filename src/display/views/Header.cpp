@@ -15,7 +15,7 @@ void Header::draw(const char *title, const char *subtitle, const char *prefix)
 
     // 1. Prefix (Left)
     _tft->setTextDatum(middle_left);
-    _tft->setTextColor(UI::COL_F1_RED);
+    _tft->setTextColor(UI::COL_ACCENT);
     _tft->setFont(UI::Fonts::HEADER_BIG);
     _tft->drawString(prefix, H_PAD, H_CENTER_Y);
 
@@ -38,7 +38,8 @@ void Header::draw(const char *title, const char *subtitle, const char *prefix)
     redrawEncoder();
 
     // 4. Divider
-    _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_F1_RED);
+    _tft->drawFastHLine(0, UI::HEADER_H - 2, UI::SCREEN_W, UI::COL_ACCENT);
+    _tft->drawFastHLine(0, UI::HEADER_H - 1, UI::SCREEN_W, UI::COL_ACCENT);
 
     _lastClockMin = -1;
 }
@@ -82,9 +83,9 @@ void Header::drawClock(TimeManager *tm)
     _tft->drawString(buf, clockX, H_CENTER_Y);
 }
 
-void Header::encoderPulse(int dir) { _glowColor = UI::COL_F1_RED; _glowMs = millis(); redrawEncoder(); }
+void Header::encoderPulse(int dir) { _glowColor = UI::COL_ACCENT; _glowMs = millis(); redrawEncoder(); }
 void Header::encoderPress() { _glowColor = UI::COL_F1_YELLOW; _glowMs = millis(); redrawEncoder(); }
-void Header::encoderLongPress() { _glowColor = UI::COL_F1_RED; _glowMs = millis(); redrawEncoder(); }
+void Header::encoderLongPress() { _glowColor = UI::COL_ACCENT; _glowMs = millis(); redrawEncoder(); }
 void Header::redrawEncoder() { drawEncoderDot(); }
 bool Header::encoderActive() const { return millis() - _glowMs < WHITE_DECAY_MS; }
 void Header::markDirty() { _lastClockMin = -1; }

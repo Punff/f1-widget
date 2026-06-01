@@ -6,6 +6,7 @@ struct SettingsData {
     uint32_t magic;
     uint8_t brightness;
     int8_t utcOffset;
+    char favTeamId[32];
 };
 
 class SettingsView : public ScrollListView
@@ -14,6 +15,7 @@ public:
     SettingsView(LGFX *tft, DisplayManager *dm);
     static void loadSettings(SettingsData &s);
     static void saveSettings(const SettingsData &s);
+    static void applyFavTeamColor(const SettingsData &s);
 
 protected:
     int dataSize() const override;
@@ -30,6 +32,7 @@ private:
     enum SettingIdx {
         SET_BRIGHTNESS = 0,
         SET_UTC_OFFSET,
+        SET_FAV_TEAM,
         SET_SYSINFO,
         SET_CLEAR_CACHE,
         SET_ABOUT,

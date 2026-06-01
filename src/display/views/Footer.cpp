@@ -35,7 +35,7 @@ void Footer::draw() {
     
     _tft->waitDMA();
     _tft->fillRect(0, UI::FOOTER_Y, UI::SCREEN_W, UI::FOOTER_H, UI::COL_BG);
-    _tft->fillRect(0, UI::FOOTER_Y, UI::SCREEN_W, 2, UI::COL_F1_RED);
+    _tft->fillRect(0, UI::FOOTER_Y, UI::SCREEN_W, 2, UI::COL_ACCENT);
     redrawWifi();
     _dirty = false;
     _lastCenterText[0] = '\0'; // Force center text redraw

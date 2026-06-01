@@ -23,12 +23,12 @@ void MenuView::drawRow(int dataIdx, bool selected, int dist)
     if (selected)
     {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
-        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_F1_RED);
-        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
+        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_ACCENT);
+        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_ACCENT);
     }
 
     uint32_t dim = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
-    uint32_t iconCol = selected ? UI::COL_F1_RED : dim;
+    uint32_t iconCol = selected ? UI::COL_ACCENT : dim;
 
     // Geometric Icon
     int ix = COL_ICON + 10;

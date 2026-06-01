@@ -100,6 +100,8 @@ void setup()
         cache->constructorStandings.shrink_to_fit();
         cache->calendar.shrink_to_fit();
         cache->save();
+        
+        SettingsView::applyFavTeamColor(bootSettings);
 
         dm->drawBootStatus("Setting clock...");
         timeMgr = new TimeManager();
@@ -117,6 +119,7 @@ void setup()
     else
     {
         dm->drawBootStatus("Offline mode");
+        SettingsView::applyFavTeamColor(bootSettings);
         timeMgr = new TimeManager();
         timeMgr->setUTCOffset(bootSettings.utcOffset);
     }

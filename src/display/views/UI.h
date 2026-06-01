@@ -36,8 +36,20 @@ namespace UI
     static constexpr uint32_t COL_F1_RED = 0xE00000;    // Neon red
     static constexpr uint32_t COL_F1_YELLOW = 0xFFD700; // F1 yellow accent
     static constexpr uint32_t COL_F1_PURPLE = 0xAA00FF; // Fastest lap purple
-    static constexpr uint32_t COL_ACCENT = 0xF0D400;    // Podium yellow
+    static constexpr uint32_t COL_ACCENT_DEFAULT = 0xF0D400; // Podium yellow
     static constexpr uint32_t COL_DIVIDER = 0x333333;   // Row separators
+
+    extern uint32_t COL_ACCENT;
+
+    static inline uint32_t rgb565to888(uint16_t color) {
+        uint8_t r = (color >> 11) & 0x1F;
+        uint8_t g = (color >> 5) & 0x3F;
+        uint8_t b = color & 0x1F;
+        r = (r << 3) | (r >> 2);
+        g = (g << 2) | (g >> 4);
+        b = (b << 3) | (b >> 2);
+        return (r << 16) | (g << 8) | b;
+    }
 
     static constexpr int FONT_TINY = 1;
     static constexpr int FONT_SMALL = 1;

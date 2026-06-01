@@ -5,9 +5,12 @@
 #include <LittleFS.h>
 #include <esp_system.h>
 
-extern TimeManager *timeMgr;
+#include "../../data/DataCache.h"
 
-static constexpr uint32_t SETTINGS_MAGIC = 0x5E771;
+extern TimeManager *timeMgr;
+extern DataCache *cache;
+
+static constexpr uint32_t SETTINGS_MAGIC = 0x5E772; // Incremented for favTeamId
 static constexpr const char *SETTINGS_PATH = "/settings.bin";
 
 static constexpr int COL_ICON = 15;
@@ -32,6 +35,23 @@ void SettingsView::loadSettings(SettingsData &s)
     s.magic = SETTINGS_MAGIC;
     s.brightness = 255;
     s.utcOffset = 2;
+    s.favTeamId[0] = '\0';
+}
+
+void SettingsView::applyFavTeamColor(const SettingsData &s)
+{
+    UI::COL_ACCENT = UI::COL_ACCENT_DEFAULT;
+    if (s.favTeamId[0] != '\0' && cache)
+    {
+        for (const auto &cs : cache->constructorStandings)
+        {
+            if (strcmp(cs.team.id, s.favTeamId) == 0)
+            {
+                UI::COL_ACCENT = UI::rgb565to888(cs.team.teamColor);
+                break;
+            }
+        }
+    }
 }
 
 void SettingsView::saveSettings(const SettingsData &s)
@@ -70,8 +90,8 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
     if (selected)
     {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
-        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_F1_RED);
-        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
+        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_ACCENT);
+        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_ACCENT);
     }
 
     uint32_t dim = selected ? UI::COL_TEXT : (dist < 2 ? UI::COL_TEXT_DIM : UI::COL_MUTED);
@@ -84,6 +104,9 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
         break;
     case SET_UTC_OFFSET:
         icon = "UTC";
+        break;
+    case SET_FAV_TEAM:
+        icon = "FAV";
         break;
     case SET_SYSINFO:
         icon = "SYS";
@@ -100,7 +123,7 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
 
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-    _rowSprite->setTextColor(selected ? UI::COL_F1_RED : dim);
+    _rowSprite->setTextColor(selected ? UI::COL_ACCENT : dim);
     _rowSprite->drawString(icon, COL_ICON, _rowH / 2);
 
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
@@ -113,7 +136,7 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
         if (_editing)
         {
             _rowSprite->fillRect(COL_VALUE - 100, 0, 120, _rowH, UI::COL_BG_SEL);
-            _rowSprite->setTextColor(UI::COL_F1_RED);
+            _rowSprite->setTextColor(UI::COL_ACCENT);
         }
         _rowSprite->setTextDatum(middle_right);
         _rowSprite->drawNumber(_settings.brightness * 100 / 255, COL_VALUE, _rowH / 2);
@@ -124,13 +147,37 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
         if (_editing)
         {
             _rowSprite->fillRect(COL_VALUE - 100, 0, 120, _rowH, UI::COL_BG_SEL);
-            _rowSprite->setTextColor(UI::COL_F1_RED);
+            _rowSprite->setTextColor(UI::COL_ACCENT);
         }
         _rowSprite->setTextDatum(middle_right);
         {
             char buf[8];
             snprintf(buf, sizeof(buf), "UTC%+d", _settings.utcOffset);
             _rowSprite->drawString(buf, COL_VALUE, _rowH / 2);
+        }
+        break;
+    case SET_FAV_TEAM:
+        _rowSprite->drawString("Fav Team", COL_LABEL, _rowH / 2);
+        if (_editing)
+        {
+            _rowSprite->fillRect(COL_VALUE - 150, 0, 170, _rowH, UI::COL_BG_SEL);
+            _rowSprite->setTextColor(UI::COL_ACCENT);
+        }
+        _rowSprite->setTextDatum(middle_right);
+        if (_settings.favTeamId[0] == '\0') {
+            _rowSprite->drawString("None", COL_VALUE, _rowH / 2);
+        } else {
+            bool found = false;
+            if (cache) {
+                for (const auto& cs : cache->constructorStandings) {
+                    if (strcmp(cs.team.id, _settings.favTeamId) == 0) {
+                        _rowSprite->drawString(cs.team.name, COL_VALUE, _rowH / 2);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            if (!found) _rowSprite->drawString(_settings.favTeamId, COL_VALUE, _rowH / 2);
         }
         break;
     case SET_SYSINFO:
@@ -146,7 +193,7 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
     case SET_CLEAR_CACHE:
         _rowSprite->drawString("Clear Cache & Reboot", COL_LABEL, _rowH / 2);
         _rowSprite->setTextDatum(middle_right);
-        _rowSprite->setTextColor(UI::COL_F1_RED);
+        _rowSprite->setTextColor(UI::COL_ACCENT);
         _rowSprite->drawString("PRESS", COL_VALUE, _rowH / 2);
         break;
     case SET_ABOUT:
@@ -176,6 +223,7 @@ void SettingsView::onPress()
         timeMgr->setUTCOffset(_settings.utcOffset);
         saveSettings(_settings);
         applyBrightness();
+        applyFavTeamColor(_settings);
         fullRedraw();
         return;
     }
@@ -183,6 +231,7 @@ void SettingsView::onPress()
     {
     case SET_BRIGHTNESS:
     case SET_UTC_OFFSET:
+    case SET_FAV_TEAM:
         _editing = true;
         partialRedraw(_cursor);
         break;
@@ -218,6 +267,7 @@ void SettingsView::onLongPress()
         _editing = false;
         loadSettings(_settings);
         applyBrightness();
+        applyFavTeamColor(_settings);
         fullRedraw();
     }
     else
@@ -241,6 +291,35 @@ void SettingsView::modifyValue(int delta)
         int v = _settings.utcOffset + delta;
         _settings.utcOffset = constrain(v, -12, 14);
         timeMgr->setUTCOffset(_settings.utcOffset);
+        drawSingleRow(_cursor - _scrollOffset);
+        break;
+    }
+    case SET_FAV_TEAM:
+    {
+        if (!cache) break;
+        int numTeams = cache->constructorStandings.size();
+        if (numTeams == 0) break;
+
+        int currentIdx = -1; // -1 represents "None"
+        if (_settings.favTeamId[0] != '\0') {
+            for (int i = 0; i < numTeams; i++) {
+                if (strcmp(cache->constructorStandings[i].team.id, _settings.favTeamId) == 0) {
+                    currentIdx = i;
+                    break;
+                }
+            }
+        }
+
+        currentIdx += delta;
+        if (currentIdx < -1) currentIdx = numTeams - 1;
+        if (currentIdx >= numTeams) currentIdx = -1;
+
+        if (currentIdx == -1) {
+            _settings.favTeamId[0] = '\0';
+        } else {
+            strlcpy(_settings.favTeamId, cache->constructorStandings[currentIdx].team.id, sizeof(_settings.favTeamId));
+        }
+
         drawSingleRow(_cursor - _scrollOffset);
         break;
     }

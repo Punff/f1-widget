@@ -41,7 +41,7 @@ void SessionResultsView::onEnter()
 
         char buf[48];
         snprintf(buf, sizeof(buf), "R%02d", _meetingRound);
-        _tft->setTextColor(UI::COL_F1_RED);
+        _tft->setTextColor(UI::COL_ACCENT);
         _tft->setFont(UI::Fonts::HEADER_BIG);
         _tft->drawString(buf, UI::SCREEN_W / 2, 120);
 
@@ -49,7 +49,7 @@ void SessionResultsView::onEnter()
         _tft->setFont(UI::Fonts::BODY_MAIN);
         _tft->drawString(_sessionName, UI::SCREEN_W / 2, 152);
 
-        _tft->drawFastHLine(UI::SCREEN_W / 2 - 20, 178, 40, UI::COL_F1_RED);
+        _tft->drawFastHLine(UI::SCREEN_W / 2 - 20, 178, 40, UI::COL_ACCENT);
 
         _tft->setTextColor(UI::COL_MUTED);
         _tft->setFont(UI::Fonts::LABEL_SMALL);

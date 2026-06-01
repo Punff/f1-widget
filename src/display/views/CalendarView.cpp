@@ -90,17 +90,17 @@ void CalendarView::drawRow(int dataIdx, bool selected, int dist)
 
     if (selected) {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
-        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_F1_RED);
-        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
+        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_ACCENT);
+        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_ACCENT);
     } else if (isNext) {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, 0x1000);
-        _rowSprite->fillRect(0, 0, 1, _rowH, UI::COL_F1_RED);
+        _rowSprite->fillRect(0, 0, 1, _rowH, UI::COL_ACCENT);
     }
 
     // Round
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(isNext ? UI::COL_F1_RED : dim);
+    _rowSprite->setTextColor(isNext ? UI::COL_ACCENT : dim);
     char roundStr[8];
     snprintf(roundStr, sizeof(roundStr), "R%02d", rm.round);
     _rowSprite->drawString(roundStr, COL_RND, _rowH / 2);
@@ -115,7 +115,7 @@ void CalendarView::drawRow(int dataIdx, bool selected, int dist)
     if (isNext) {
         _rowSprite->setTextDatum(middle_right);
         _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
-        _rowSprite->setTextColor(UI::COL_F1_RED);
+        _rowSprite->setTextColor(UI::COL_ACCENT);
         _rowSprite->drawString("NEXT", COL_STATUS, _rowH / 2);
     } else if (dataIdx > _nextRoundIdx && _nextRoundIdx != -1) {
         _rowSprite->setTextDatum(middle_right);

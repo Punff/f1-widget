@@ -320,11 +320,11 @@ void NewsView::showLoading()
     _tft->fillScreen(UI::COL_BG);
 
     _tft->setTextDatum(middle_center);
-    _tft->setTextColor(UI::COL_F1_RED);
+    _tft->setTextColor(UI::COL_ACCENT);
     _tft->setFont(UI::Fonts::HEADER_BIG);
     _tft->drawString("NEWS", UI::SCREEN_W / 2, 120);
 
-    _tft->drawFastHLine(UI::SCREEN_W / 2 - 20, 152, 40, UI::COL_F1_RED);
+    _tft->drawFastHLine(UI::SCREEN_W / 2 - 20, 152, 40, UI::COL_ACCENT);
 
     _tft->setTextColor(UI::COL_TEXT);
     _tft->setFont(UI::Fonts::BODY_MAIN);

@@ -120,13 +120,13 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist)
 
     if (selected)
     {
-        accentCol = UI::COL_F1_RED;
+        accentCol = UI::COL_ACCENT;
         textCol = UI::COL_TEXT;
     }
     else if (isNext)
     {
-        accentCol = UI::COL_F1_RED;
-        textCol = UI::COL_F1_RED;
+        accentCol = UI::COL_ACCENT;
+        textCol = UI::COL_ACCENT;
     }
     else if (isFuture)
     {
@@ -142,12 +142,12 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist)
     if (selected)
     {
         _rowSprite->fillRect(4, 0, UI::SCREEN_W - 8, _rowH, UI::COL_BG_SEL);
-        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_F1_RED);
-        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, UI::COL_F1_RED);
+        _rowSprite->fillRect(0, 0, 4, _rowH, accentCol);
+        _rowSprite->fillRect(UI::SCREEN_W - 4, 0, 4, _rowH, accentCol);
     }
     else if (isNext)
     {
-        _rowSprite->fillRect(0, 0, 4, _rowH, UI::COL_F1_RED);
+        _rowSprite->fillRect(0, 0, 4, _rowH, accentCol);
     }
     else if (isFuture)
     {
@@ -165,14 +165,14 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist)
 
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
-    _rowSprite->setTextColor(isNext ? UI::COL_F1_RED : textCol);
+    _rowSprite->setTextColor(isNext ? accentCol : textCol);
     _rowSprite->drawString(dayStr, COL_DAY, _rowH / 2 - 6);
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
     _rowSprite->setTextColor(textCol);
     _rowSprite->drawString(dateStr, COL_DAY, _rowH / 2 + 6);
 
     _rowSprite->setFont(UI::Fonts::DATA_ACCENT);
-    _rowSprite->setTextColor(isNext ? UI::COL_F1_RED : textCol);
+    _rowSprite->setTextColor(isNext ? accentCol : textCol);
     _rowSprite->drawString(sessionAbbrev(s.name), COL_NAME, _rowH / 2);
 
     _rowSprite->setTextDatum(middle_right);
@@ -182,7 +182,7 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist)
 
     if (isNext)
     {
-        _rowSprite->setTextColor(UI::COL_F1_RED);
+        _rowSprite->setTextColor(accentCol);
         _rowSprite->drawString("NEXT", COL_NEXT, _rowH / 2);
     }
 }
