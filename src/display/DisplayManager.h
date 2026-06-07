@@ -4,6 +4,7 @@
 #include "UI_Fonts.h"
 #include "views/WeekendView.h"
 #include "views/SessionResultsView.h"
+#include "views/DriverDetailView.h"
 #include "views/Header.h"
 #include "views/Footer.h"
 
@@ -17,6 +18,7 @@ public:
     void init(IView *menuView);
     void drawSplash();
     void drawBootStatus(const char *msg);
+    void drawWiFiInstructions();
     void loop();
 
     void setView(IView *view);
@@ -34,8 +36,10 @@ public:
 
     void registerView(MenuItem item, IView *view);
     void launchMenuItem(int menuIndex);
+    void updateAutoSwitch();
     void launchWeekendView(const RaceMeeting *meeting);
     void launchSessionResultsView(const RaceMeeting *meeting, int sessionIdx);
+    void launchDriverDetailView(int driverIdx);
 
     LGFX *tft() const;
     LGFX_Sprite *rowSprite() const;
@@ -53,6 +57,10 @@ private:
     IView *_previousView;
     IView *_menuView;
     IView *_viewRegistry[REGISTRY_SIZE];
-    WeekendView *_weekendView = nullptr;
-    SessionResultsView *_sessionResultsView = nullptr;
+    WeekendView *_weekendView;
+    SessionResultsView *_sessionResultsView;
+    DriverDetailView *_driverDetailView;
+    int _lastAutoSwitchRound;
+    int _lastAutoSwitchSession;
+    unsigned long _lastAutoSwitchMs;
 };

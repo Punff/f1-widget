@@ -6,7 +6,7 @@
 
 extern DataCache *cache;
 
-static constexpr int PAD = 14;
+// Content padding (matches project standard)
 
 NewsView::NewsView(LGFX *tft, DisplayManager *dm)
     : _tft(tft), _dm(dm), _current(0), _showOverlay(false) {}
@@ -80,7 +80,7 @@ void NewsView::onLongPress()
 void NewsView::renderArticle()
 {
     // No full screen fill to prevent flicker
-    _dm->header()->draw("NEWS", nullptr, "NEW");
+    _dm->header()->draw("NEWS", nullptr, "F1");
 
     const auto &a = cache->newsFeed[_current];
 
@@ -100,8 +100,8 @@ void NewsView::renderNormal(const NewsArticle &a)
     // Clear content area AND the hint area at the bottom
     _tft->fillRect(0, UI::HEADER_H + 2, UI::SCREEN_W, UI::SCREEN_H - UI::HEADER_H - 2, UI::COL_BG);
 
-    int cx = PAD;
-    int cw = UI::SCREEN_W - PAD * 2;
+    int cx = UI::PAD_X;
+    int cw = UI::SCREEN_W - UI::PAD_X * 2;
 
     _tft->setTextDatum(top_left);
 
@@ -152,7 +152,7 @@ void NewsView::renderOverlay(const NewsArticle &a)
     {
         const int quietZoneModules = 4;
         const int modules = qrcode.size + (quietZoneModules * 2);
-        int scale = 3;
+        int scale = 2;
         int qrTotalSize = modules * scale;
         
         int qrX = (UI::SCREEN_W - qrTotalSize) / 2;

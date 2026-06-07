@@ -8,14 +8,14 @@ class DisplayManager;
 class ScrollListView : public IView
 {
 public:
-    ScrollListView(LGFX *tft, DisplayManager *dm, int rowH, int rowsVisible, int centerRow);
+    ScrollListView(LGFX *tft, DisplayManager *dm, int rowH, int rowsVisible, int centerRow, int colH = 0);
     virtual ~ScrollListView();
 
     // Lifecycle
     void onEnter() override;
     void onExit() override;
     void render() override;
-    void tick() override {}
+    void tick() override;
 
     // Input
     void onTurnRight() override;
@@ -35,12 +35,17 @@ protected:
     int _rowH;
     int _rowsVisible;
     int _centerRow;
+    int _colH;
 
     // Draw helpers
     void updateScrollOffset();
     void fullRedraw();
     void partialRedraw(int oldCursor);
     void drawSingleRow(int row);
+
+    // Animations
+    void flashRow();
+    int _shimmerSteps;
 
     // LGFX members
     LGFX *_tft;

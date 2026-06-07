@@ -7,20 +7,12 @@
 static constexpr int CENTER_X = 240;
 static constexpr int CENTER_W = 240;
 static constexpr int CENTER_H = 16;
-static constexpr int WIFI_X = 415;
+static constexpr int WIFI_X = 460;
 static constexpr int WIFI_Y = UI::FOOTER_Y + 12;
 
 Footer::Footer(LGFX *tft) : _tft(tft), _wifiOn(false), _dirty(true) {
-    _tooltip[0] = '\0';
     _lastCenterText[0] = '\0';
     _lastCenterColor = 0;
-}
-
-void Footer::setTooltip(const char *t) {
-    if (strcmp(_tooltip, t) != 0) {
-        strlcpy(_tooltip, t, sizeof(_tooltip));
-        _dirty = true;
-    }
 }
 
 void Footer::setWifiConnected(bool on) {
@@ -44,21 +36,56 @@ void Footer::draw() {
 void Footer::drawCenter(const char *text, uint32_t color) {
     if (!text || !text[0]) return;
     
+    bool textChanged = strcmp(text, _lastCenterText) != 0;
+
     // Skip if same as last draw and not dirty
-    if (!_dirty && color == _lastCenterColor && strcmp(text, _lastCenterText) == 0) {
+    if (!_dirty && !textChanged && color == _lastCenterColor) {
         return;
     }
 
-    int cy = UI::FOOTER_Y + UI::FOOTER_H / 2;
-    _tft->waitDMA();
-    _tft->fillRect(CENTER_X - CENTER_W / 2, cy - CENTER_H / 2, CENTER_W, CENTER_H, UI::COL_BG);
-    _tft->setTextDatum(middle_center);
-    _tft->setTextColor(color);
-    _tft->setFont(UI::Fonts::LABEL_SMALL);
-    _tft->drawString(text, CENTER_X, cy);
+    if (textChanged && _lastCenterText[0]) {
+        animateCenter(text, color);
+    } else {
+        int cy = UI::FOOTER_Y + UI::FOOTER_H / 2;
+        _tft->waitDMA();
+        _tft->fillRect(CENTER_X - CENTER_W / 2, cy - CENTER_H / 2, CENTER_W, CENTER_H, UI::COL_BG);
+        _tft->setTextDatum(middle_center);
+        _tft->setTextColor(color);
+        _tft->setFont(UI::Fonts::LABEL_SMALL);
+        _tft->drawString(text, CENTER_X, cy);
+    }
 
     strlcpy(_lastCenterText, text, sizeof(_lastCenterText));
     _lastCenterColor = color;
+}
+
+void Footer::animateCenter(const char *newText, uint32_t color) {
+    int cy = UI::FOOTER_Y + UI::FOOTER_H / 2;
+    int cx = UI::SCREEN_W / 2;
+
+    // 5 frames, 2px per step = 60ms total
+    for (int step = 4; step >= 0; step--) {
+        _tft->waitDMA();
+        // Clear below accent line (FOOTER_Y+2) to leave footer accent bar intact
+        _tft->fillRect(cx - CENTER_W / 2, UI::FOOTER_Y + 2, CENTER_W, UI::FOOTER_H - 2, UI::COL_BG);
+        _tft->setTextDatum(middle_center);
+        _tft->setFont(UI::Fonts::LABEL_SMALL);
+
+        _tft->setTextColor(UI::COL_MUTED);
+        _tft->drawString(_lastCenterText, cx, cy - (4 - step) * 2);
+
+        _tft->setTextColor(color);
+        _tft->drawString(newText, cx, cy + (step + 1) * 2);
+
+        delay(12);
+    }
+    // Final: ensure clean draw at resting position
+    _tft->waitDMA();
+    _tft->fillRect(cx - CENTER_W / 2, UI::FOOTER_Y + 2, CENTER_W, UI::FOOTER_H - 2, UI::COL_BG);
+    _tft->setTextDatum(middle_center);
+    _tft->setFont(UI::Fonts::LABEL_SMALL);
+    _tft->setTextColor(color);
+    _tft->drawString(newText, cx, cy);
 }
 
 void Footer::redrawWifi() {

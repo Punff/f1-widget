@@ -1,9 +1,15 @@
 #include "MenuView.h"
 #include "../DisplayManager.h"
 #include "../../../include/UI_Fonts.h"
+#include "../../data/DataCache.h"
+#include "../../time/TimeManager.h"
+#include "../../time/TimeUtils.h"
+#include <time.h>
 
-static constexpr int COL_ICON = 15;
-static constexpr int COL_NAME = 70;
+extern DataCache *cache;
+extern TimeManager *timeMgr;
+
+// Column offsets (using shared UI constants)
 
 MenuView::MenuView(LGFX *tft, DisplayManager *dm)
     : ScrollListView(tft, dm, 46, 5, 2) {}
@@ -31,7 +37,7 @@ void MenuView::drawRow(int dataIdx, bool selected, int dist)
     uint32_t iconCol = selected ? UI::COL_ACCENT : dim;
 
     // Geometric Icon
-    int ix = COL_ICON + 10;
+    int ix = UI::COL_POS + 10;
     int iy = _rowH / 2;
     switch (static_cast<MenuItem>(dataIdx))
     {
@@ -52,6 +58,11 @@ void MenuView::drawRow(int dataIdx, bool selected, int dist)
         _rowSprite->drawFastHLine(ix - 8, iy, 8, iconCol);
         _rowSprite->drawFastHLine(ix - 8, iy + 8, 14, iconCol);
         break;
+    case MenuItem::CURRENT_WEEKEND:
+        _rowSprite->fillTriangle(ix, iy - 8, ix - 6, iy, ix + 6, iy, iconCol);
+        _rowSprite->fillTriangle(ix, iy + 8, ix - 6, iy, ix + 6, iy, iconCol);
+        _rowSprite->fillCircle(ix, iy - 10, 3, iconCol);
+        break;
     case MenuItem::SETTINGS:
         _rowSprite->drawCircle(ix, iy, 7, iconCol);
         for(int a=0; a<360; a+=45) {
@@ -67,19 +78,70 @@ void MenuView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(dim);
-    _rowSprite->drawString(_getMenuName(dataIdx), COL_NAME, _rowH / 2);
+    _rowSprite->drawString(_getMenuName(dataIdx), UI::COL_PRIMARY, _rowH / 2);
 }
 
 void MenuView::drawFooter()
 {
     _dm->footer()->draw();
-    char buf[32];
-    snprintf(buf, sizeof(buf), "Heap: %uK", ESP.getFreeHeap() / 1024);
+    char buf[48];
+    snprintf(buf, sizeof(buf), "MEN \xc2\xb7 %s", _getMenuName(_cursor));
     _dm->footer()->drawCenter(buf, UI::COL_MUTED);
 }
 
 void MenuView::onPress()
 {
+    if (static_cast<MenuItem>(_cursor) == MenuItem::CURRENT_WEEKEND)
+    {
+        if (!timeMgr || !timeMgr->isSynced() || !cache || cache->calendar.empty())
+            return;
+
+        time_t nowLocal = timeMgr->getLocalTime();
+        struct tm nowTm;
+        localtime_r(&nowLocal, &nowTm);
+        char todayStr[16];
+        strftime(todayStr, sizeof(todayStr), "%Y-%m-%d", &nowTm);
+
+        const RaceMeeting *best = nullptr;
+
+        // Find current weekend (today within [first session, race day])
+        for (auto &rm : cache->calendar)
+        {
+            if (rm.sessionCount == 0) continue;
+            char sd[16] = "";
+            strncpy(sd, rm.sessions[0].dateUtc, 10);
+            if (sd[0] && strcmp(todayStr, sd) >= 0 && strcmp(todayStr, rm.date) <= 0)
+            {
+                best = &rm;
+                break;
+            }
+        }
+
+        // Fallback: next upcoming weekend
+        if (!best)
+        {
+            for (auto &rm : cache->calendar)
+            {
+                if (rm.sessionCount == 0) continue;
+                char sd[16] = "";
+                strncpy(sd, rm.sessions[0].dateUtc, 10);
+                if (sd[0] && strcmp(sd, todayStr) > 0)
+                {
+                    best = &rm;
+                    break;
+                }
+            }
+        }
+
+        // Last resort: last weekend of the season
+        if (!best && !cache->calendar.empty())
+            best = &cache->calendar.back();
+
+        if (best)
+            _dm->launchWeekendView(best);
+        return;
+    }
+
     _dm->launchMenuItem(_cursor);
 }
 
@@ -96,6 +158,7 @@ const char *MenuView::_getMenuName(int index) const
     case MenuItem::CONSTRUCTOR_STANDINGS: return "Constructor Standings";
     case MenuItem::CALENDAR:              return "Season Calendar";
     case MenuItem::NEWS:                  return "Latest News";
+    case MenuItem::CURRENT_WEEKEND:       return "Race Weekend";
     case MenuItem::SETTINGS:              return "System Settings";
     default:                              return "Unknown";
     }

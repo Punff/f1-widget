@@ -5,7 +5,7 @@
 
 class WeekendView : public ScrollListView {
 public:
-    WeekendView(LGFX *tft, DisplayManager *dm, const RaceMeeting *meeting);
+    WeekendView(LGFX *tft, DisplayManager *dm, int meetingRound);
 protected:
     int dataSize() const override;
     void onEnter() override;
@@ -16,7 +16,8 @@ protected:
     void onLongPress() override;
     void tick() override;
 private:
-    const RaceMeeting *_meeting;
-    unsigned long _lastFooterSec = 0;
+    const RaceMeeting *_meeting = nullptr;
+    int _meetingRound;
+    time_t _lastFooterSec = 0;
     std::vector<time_t> _sessionTimes;
 };

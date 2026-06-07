@@ -31,14 +31,13 @@ private:
     void drawEncoderDot();
 
     // Header grid constants
-    static constexpr int H_PAD = 10;
+    static constexpr int H_PAD = UI::PAD_X;
     static constexpr int H_CENTER_Y = UI::HEADER_H / 2;
-    static constexpr int H_CLOCK_X = UI::SCREEN_W - 5;
-    static constexpr int H_DOT_X = UI::SCREEN_W - 55;
+    static constexpr int H_DOT_X = UI::SCREEN_W - 40;
     static constexpr int H_DOT_Y = H_CENTER_Y;
     static constexpr int H_DOT_R = 5;
 
-    // Clock — top-right
+    // Clock
     static constexpr int CLOCK_W = 80;
     static constexpr int CLOCK_H = 22;
 

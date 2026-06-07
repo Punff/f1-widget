@@ -13,19 +13,20 @@ void Header::draw(const char *title, const char *subtitle, const char *prefix)
 
     _tft->fillRect(0, 0, UI::SCREEN_W, UI::HEADER_H, UI::COL_BG);
 
-    // 1. Prefix (Left)
+    // 1. Prefix badge (Left) — measure width to position title dynamically
     _tft->setTextDatum(middle_left);
     _tft->setTextColor(UI::COL_ACCENT);
     _tft->setFont(UI::Fonts::HEADER_BIG);
     _tft->drawString(prefix, H_PAD, H_CENTER_Y);
+    int titleX = H_PAD + _tft->textWidth(prefix) + 12;
+    if (titleX < 80) titleX = 80;
 
-    // 2. Title/Subtitle (Middle)
-    int titleX = 100;
+    // 2. Title/Subtitle
     _tft->setTextColor(UI::COL_TEXT);
     if (subtitle && strlen(subtitle) > 0) {
         _tft->setFont(UI::Fonts::BODY_MAIN);
         _tft->drawString(title, titleX, H_CENTER_Y - 8);
-        
+
         _tft->setTextColor(UI::COL_MUTED);
         _tft->setFont(UI::Fonts::LABEL_SMALL);
         _tft->drawString(subtitle, titleX, H_CENTER_Y + 12);
@@ -88,7 +89,7 @@ void Header::encoderPress() { _glowColor = UI::COL_F1_YELLOW; _glowMs = millis()
 void Header::encoderLongPress() { _glowColor = UI::COL_ACCENT; _glowMs = millis(); redrawEncoder(); }
 void Header::redrawEncoder() { drawEncoderDot(); }
 bool Header::encoderActive() const { return millis() - _glowMs < WHITE_DECAY_MS; }
-void Header::markDirty() { _lastClockMin = -1; }
+void Header::markDirty() { _lastClockMin = -1; _clockStale = false; }
 
 void Header::drawEncoderDot()
 {

@@ -5,14 +5,10 @@
 
 extern DataCache *cache;
 
-// Column offsets
-static constexpr int COL_POS = 15;
-static constexpr int COL_NAME = 55;
-static constexpr int COL_TEAM = 160;
-static constexpr int COL_PTS = 465;
+// Column offsets (using shared UI constants)
 
 DriverStandingsView::DriverStandingsView(LGFX *tft, DisplayManager *dm)
-    : ScrollListView(tft, dm, 46, 5, 2) // RowH=46px, 5 rows, selection at index 2
+    : ScrollListView(tft, dm, 43, 5, 2, 14) // RowH=43px, 5 rows, selection at index 2
 {
 }
 
@@ -26,16 +22,16 @@ void DriverStandingsView::drawHeader()
     _dm->header()->draw("DRIVER STANDINGS");
 
     // Column headers
+    _tft->setTextDatum(middle_left);
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
-
-    _tft->setTextDatum(middle_left);
-    _tft->drawString("#", COL_POS, 42);
-    _tft->drawString("DRIVER", COL_NAME, 42);
-    _tft->drawString("TEAM", COL_TEAM, 42);
+    int chY = UI::HEADER_H + _colH / 2;
+    _tft->drawString("#", UI::COL_POS, chY);
+    _tft->drawString("DRIVER", UI::COL_PRIMARY, chY);
+    _tft->drawString("TEAM", UI::COL_SECONDARY, chY);
 
     _tft->setTextDatum(middle_right);
-    _tft->drawString("PTS", COL_PTS, 42);
+    _tft->drawString("PTS", UI::COL_END_R, chY);
 }
 
 void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
@@ -63,16 +59,16 @@ void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->setTextColor(tc);
     char posBuf[4];
     snprintf(posBuf, sizeof(posBuf), "%2d", ds.position);
-    _rowSprite->drawString(posBuf, COL_POS, _rowH / 2);
+    _rowSprite->drawString(posBuf, UI::COL_POS, _rowH / 2);
 
     // Driver acronym
     _rowSprite->setTextColor(nameCol);
-    _rowSprite->drawString(ds.driver.acronym, COL_NAME, _rowH / 2);
+    _rowSprite->drawString(ds.driver.acronym, UI::COL_PRIMARY, _rowH / 2);
 
     // Team name
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
     _rowSprite->setTextColor(textCol);
-    _rowSprite->drawString(ds.driver.team.name, COL_TEAM, _rowH / 2);
+    _rowSprite->drawString(ds.driver.team.name, UI::COL_SECONDARY, _rowH / 2);
 
     // Points
     _rowSprite->setTextDatum(middle_right);
@@ -81,7 +77,7 @@ void DriverStandingsView::drawRow(int dataIdx, bool selected, int dist)
     char ptsStr[16];
     if (ds.points == (int)ds.points) snprintf(ptsStr, sizeof(ptsStr), "%d", (int)ds.points);
     else snprintf(ptsStr, sizeof(ptsStr), "%.1f", ds.points);
-    _rowSprite->drawString(ptsStr, COL_PTS, _rowH / 2);
+    _rowSprite->drawString(ptsStr, UI::COL_END_R, _rowH / 2);
 }
 
 void DriverStandingsView::drawFooter()
@@ -100,7 +96,7 @@ void DriverStandingsView::drawFooter()
     if (_cursor == 0)
     {
         uint16_t tc = sel.driver.team.teamColor;
-        color = ((tc & 0xF800) << 8) | ((tc & 0x07E0) << 5) | ((tc & 0x001F) << 3);
+        color = UI::rgb565to888(tc);
         snprintf(buf, sizeof(buf), "DS \xc2\xb7 P1: %s", sel.driver.acronym);
     }
     else
@@ -113,14 +109,11 @@ void DriverStandingsView::drawFooter()
     _dm->footer()->drawCenter(buf, color);
 }
 
-void DriverStandingsView::onTurnRight()
+void DriverStandingsView::onPress()
 {
-    ScrollListView::onTurnRight();
-}
-
-void DriverStandingsView::onTurnLeft()
-{
-    ScrollListView::onTurnLeft();
+    if (_cursor < 0 || _cursor >= (int)cache->driverStandings.size())
+        return;
+    _dm->launchDriverDetailView(_cursor);
 }
 
 void DriverStandingsView::onLongPress()

@@ -8,6 +8,7 @@ enum class MenuItem
     CONSTRUCTOR_STANDINGS,
     CALENDAR,
     NEWS,
+    CURRENT_WEEKEND,
     SETTINGS,
     COUNT
 };
@@ -38,6 +39,7 @@ namespace UI
     static constexpr uint32_t COL_F1_PURPLE = 0xAA00FF; // Fastest lap purple
     static constexpr uint32_t COL_ACCENT_DEFAULT = 0xF0D400; // Podium yellow
     static constexpr uint32_t COL_DIVIDER = 0x333333;   // Row separators
+    static constexpr uint32_t COL_NEXT_BG = 0x001000;   // Subtle highlight for upcoming row
 
     extern uint32_t COL_ACCENT;
 
@@ -57,8 +59,15 @@ namespace UI
     static constexpr int FONT_LARGE = 3;
 
     // Spacing
-    static constexpr int PAD_X = 12;
+    static constexpr int PAD_X = 14;
     static constexpr int PAD_Y = 8;
+
+    // Standardized column positions for all list views
+    static constexpr int COL_POS = 14;       // Position / round number (left)
+    static constexpr int COL_PRIMARY = 65;   // Main label (driver, team, session name)
+    static constexpr int COL_SECONDARY = 170; // Secondary info (team name, venue)
+    static constexpr int COL_VALUE_R = 370;  // Right-aligned value (time, date)
+    static constexpr int COL_END_R = 465;    // Right-aligned end (points, "NEXT", status)
 
     // Shared sprite max row height — all views use same sprite to prevent heap fragmentation
     static constexpr int MAX_ROW_H = 50;

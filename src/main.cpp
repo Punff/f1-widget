@@ -11,6 +11,7 @@
 #include "api/APIClient.h"
 #include "input/EncoderInput.h"
 #include "wifi/WiFiManager.h"
+#include <esp_wifi.h>
 #include "time/TimeManager.h"
 #include "esp_system.h"
 #include "LittleFS.h"
@@ -84,6 +85,17 @@ void setup()
 
     api = new APIClient(cache);
 
+    // Check for saved WiFi credentials via ESP32 WiFi config
+    {
+        WiFi.mode(WIFI_STA);
+        wifi_config_t _conf;
+        esp_wifi_get_config(WIFI_IF_STA, &_conf);
+        bool hasCreds = strlen((const char *)_conf.sta.ssid) > 0;
+        if (!hasCreds) {
+            dm->drawWiFiInstructions();
+        }
+    }
+
     dm->drawBootStatus("Connecting to WiFi...");
     if (wifi_init())
     {
@@ -96,6 +108,7 @@ void setup()
         dm->drawBootStatus("Syncing calendar...");
         api->syncCalendar();
 
+        // Compact vectors and persist to flash
         cache->driverStandings.shrink_to_fit();
         cache->constructorStandings.shrink_to_fit();
         cache->calendar.shrink_to_fit();

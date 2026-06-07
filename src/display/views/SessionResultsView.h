@@ -16,8 +16,6 @@ protected:
     void drawHeader() override;
     void drawRow(int dataIdx, bool selected, int dist) override;
     void drawFooter() override;
-    void onTurnRight() override;
-    void onTurnLeft() override;
     void onPress() override;
     void onLongPress() override;
 

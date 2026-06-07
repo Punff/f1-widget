@@ -1,12 +1,16 @@
 #include "DisplayManager.h"
 #include "../../include/LGFX_Config.h"
 #include "../time/TimeManager.h"
+#include "../time/TimeUtils.h"
+#include "../data/DataCache.h"
 #include <WiFi.h>
 #include <LittleFS.h>
+#include <time.h>
 
 uint32_t UI::COL_ACCENT = UI::COL_ACCENT_DEFAULT;
 
 extern TimeManager *timeMgr;
+extern DataCache *cache;
 
 void DisplayManager::drawSplash()
 {
@@ -48,20 +52,39 @@ void DisplayManager::drawSplash()
 
 void DisplayManager::drawBootStatus(const char *msg)
 {
-    _tft->fillRect(0, 260, UI::SCREEN_W, 50, UI::COL_BG);
+    _tft->fillRect(0, 260, UI::SCREEN_W, 60, UI::COL_BG);
     _tft->setTextDatum(middle_center);
     _tft->setTextColor(UI::COL_TEXT);
     _tft->setFont(UI::Fonts::BODY_MAIN);
     _tft->drawString(msg, UI::SCREEN_W / 2, 285);
 
-    // Also output to serial for debugging
     Serial.printf("[BOOT] %s\n", msg);
+}
+
+void DisplayManager::drawWiFiInstructions()
+{
+    int cx = UI::SCREEN_W / 2;
+    int y = 210;
+
+    _tft->fillRect(0, 195, UI::SCREEN_W, 65, UI::COL_BG);
+    _tft->setTextDatum(middle_center);
+    _tft->setTextColor(UI::COL_ACCENT);
+    _tft->setFont(UI::Fonts::BODY_MAIN);
+    _tft->drawString("WiFi Setup Required", cx, y);
+
+    _tft->setTextColor(UI::COL_TEXT_DIM);
+    _tft->setFont(UI::Fonts::LABEL_SMALL);
+    _tft->drawString("Connect to  \"F1Widget\"  WiFi network", cx, y + 20);
+    _tft->drawString("then open a browser to 192.168.4.1", cx, y + 36);
 }
 
 DisplayManager::DisplayManager(LGFX *tft)
     : _tft(tft), _header(nullptr), _footer(nullptr),
       _currentView(nullptr), _previousView(nullptr),
-      _menuView(nullptr), _viewRegistry{}
+      _menuView(nullptr), _viewRegistry{},
+      _weekendView(nullptr), _sessionResultsView(nullptr),
+      _driverDetailView(nullptr),
+      _lastAutoSwitchRound(-1), _lastAutoSwitchSession(-1), _lastAutoSwitchMs(0)
 {
     _sharedRowSprite = new LGFX_Sprite(_tft);
     // Fixed size — never reallocated. All views use same MAX_ROW_H.
@@ -99,6 +122,12 @@ void DisplayManager::loop()
             _footer->redrawWifi();
         }
     }
+
+    // Auto-switch to current weekend when a session goes live
+    if (now - _lastAutoSwitchMs >= 60000) {
+        _lastAutoSwitchMs = now;
+        updateAutoSwitch();
+    }
 }
 
 void DisplayManager::setView(IView *view)
@@ -116,6 +145,11 @@ void DisplayManager::setView(IView *view)
         if (_previousView == _sessionResultsView) _previousView = nullptr;
         delete _sessionResultsView;
         _sessionResultsView = nullptr;
+    }
+    if (_currentView == _driverDetailView) {
+        if (_previousView == _driverDetailView) _previousView = nullptr;
+        delete _driverDetailView;
+        _driverDetailView = nullptr;
     }
 
     _currentView = view;
@@ -204,18 +238,52 @@ void DisplayManager::launchMenuItem(int menuIndex)
     }
 }
 
+void DisplayManager::updateAutoSwitch()
+{
+    if (!timeMgr || !timeMgr->isSynced() || !cache || cache->calendar.empty())
+        return;
+
+    time_t nowLocal = timeMgr->getLocalTime();
+    struct tm nowTm;
+    localtime_r(&nowLocal, &nowTm);
+    char todayStr[16];
+    strftime(todayStr, sizeof(todayStr), "%Y-%m-%d", &nowTm);
+
+    // Find the weekend that is currently active
+    for (auto &rm : cache->calendar)
+    {
+        if (rm.sessionCount == 0) continue;
+        char sd[16] = "";
+        strncpy(sd, rm.sessions[0].dateUtc, 10);
+        if (sd[0] && strcmp(todayStr, sd) >= 0 && strcmp(todayStr, rm.date) <= 0)
+        {
+            if (rm.round != _lastAutoSwitchRound)
+            {
+                _lastAutoSwitchRound = rm.round;
+                _lastAutoSwitchSession = 0;
+                launchWeekendView(&rm);
+            }
+            return;
+        }
+    }
+}
+
 void DisplayManager::launchWeekendView(const RaceMeeting *meeting) {
     if (_weekendView) {
+        if (_currentView == _weekendView)
+            _currentView = nullptr;
         delete _weekendView;
     }
     _previousView = _currentView;
     _sessionResultsView = nullptr;
-    _weekendView = new WeekendView(_tft, this, meeting);
+    _weekendView = new WeekendView(_tft, this, meeting->round);
     setView(_weekendView);
 }
 
 void DisplayManager::launchSessionResultsView(const RaceMeeting *meeting, int sessionIdx) {
     if (_sessionResultsView) {
+        if (_currentView == _sessionResultsView)
+            _currentView = nullptr;
         delete _sessionResultsView;
     }
     _previousView = _currentView;
@@ -223,6 +291,17 @@ void DisplayManager::launchSessionResultsView(const RaceMeeting *meeting, int se
         meeting->round, meeting->officialName, meeting->circuit.shortName,
         meeting->sessions[sessionIdx].name);
     setView(_sessionResultsView);
+}
+
+void DisplayManager::launchDriverDetailView(int driverIdx) {
+    if (_driverDetailView) {
+        if (_currentView == _driverDetailView)
+            _currentView = nullptr;
+        delete _driverDetailView;
+    }
+    _previousView = _currentView;
+    _driverDetailView = new DriverDetailView(_tft, this, driverIdx);
+    setView(_driverDetailView);
 }
 
 LGFX *DisplayManager::tft() const { return _tft; }

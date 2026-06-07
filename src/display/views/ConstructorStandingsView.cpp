@@ -5,13 +5,10 @@
 
 extern DataCache *cache;
 
-// Column offsets
-static constexpr int COL_POS = 15;
-static constexpr int COL_NAME = 65;
-static constexpr int COL_PTS = 465;
+// Column offsets (using shared UI constants)
 
 ConstructorStandingsView::ConstructorStandingsView(LGFX *tft, DisplayManager *dm)
-    : ScrollListView(tft, dm, 46, 5, 2) // RowH=46px, 5 rows, center at index 2
+    : ScrollListView(tft, dm, 43, 5, 2, 14) // RowH=43px, 5 rows, center at index 2
 {
 }
 
@@ -25,15 +22,15 @@ void ConstructorStandingsView::drawHeader()
     _dm->header()->draw("CONSTRUCTOR STANDINGS");
 
     // Column headers
+    _tft->setTextDatum(middle_left);
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
-
-    _tft->setTextDatum(middle_left);
-    _tft->drawString("#", COL_POS, 42);
-    _tft->drawString("TEAM", COL_NAME, 42);
+    int chY = UI::HEADER_H + _colH / 2;
+    _tft->drawString("#", UI::COL_POS, chY);
+    _tft->drawString("TEAM", UI::COL_PRIMARY, chY);
 
     _tft->setTextDatum(middle_right);
-    _tft->drawString("PTS", COL_PTS, 42);
+    _tft->drawString("PTS", UI::COL_END_R, chY);
 }
 
 void ConstructorStandingsView::drawRow(int dataIdx, bool selected, int dist)
@@ -60,11 +57,11 @@ void ConstructorStandingsView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->setTextColor(tc);
     char posBuf[4];
     snprintf(posBuf, sizeof(posBuf), "%2d", cs.position);
-    _rowSprite->drawString(posBuf, COL_POS, _rowH / 2);
+    _rowSprite->drawString(posBuf, UI::COL_POS, _rowH / 2);
 
     // Team name
     _rowSprite->setTextColor(nameCol);
-    _rowSprite->drawString(cs.team.name, COL_NAME, _rowH / 2);
+    _rowSprite->drawString(cs.team.name, UI::COL_PRIMARY, _rowH / 2);
 
     // Points — team color
     _rowSprite->setTextDatum(middle_right);
@@ -73,7 +70,7 @@ void ConstructorStandingsView::drawRow(int dataIdx, bool selected, int dist)
     char ptsStr[16];
     if (cs.points == (int)cs.points) snprintf(ptsStr, sizeof(ptsStr), "%d", (int)cs.points);
     else snprintf(ptsStr, sizeof(ptsStr), "%.1f", cs.points);
-    _rowSprite->drawString(ptsStr, COL_PTS, _rowH / 2);
+    _rowSprite->drawString(ptsStr, UI::COL_END_R, _rowH / 2);
 }
 
 void ConstructorStandingsView::drawFooter()
@@ -92,7 +89,7 @@ void ConstructorStandingsView::drawFooter()
     if (_cursor == 0)
     {
         uint16_t tc = sel.team.teamColor;
-        color = ((tc & 0xF800) << 8) | ((tc & 0x07E0) << 5) | ((tc & 0x001F) << 3);
+        color = UI::rgb565to888(tc);
         snprintf(buf, sizeof(buf), "CS \xc2\xb7 P1: %s", sel.team.name);
     }
     else
@@ -103,16 +100,6 @@ void ConstructorStandingsView::drawFooter()
     }
 
     _dm->footer()->drawCenter(buf, color);
-}
-
-void ConstructorStandingsView::onTurnRight()
-{
-    ScrollListView::onTurnRight();
-}
-
-void ConstructorStandingsView::onTurnLeft()
-{
-    ScrollListView::onTurnLeft();
 }
 
 void ConstructorStandingsView::onLongPress()

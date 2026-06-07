@@ -13,9 +13,7 @@ extern DataCache *cache;
 static constexpr uint32_t SETTINGS_MAGIC = 0x5E772; // Incremented for favTeamId
 static constexpr const char *SETTINGS_PATH = "/settings.bin";
 
-static constexpr int COL_ICON = 15;
-static constexpr int COL_LABEL = 70;
-static constexpr int COL_VALUE = 465;
+// Column offsets (using shared UI constants)
 
 void SettingsView::loadSettings(SettingsData &s)
 {
@@ -47,7 +45,13 @@ void SettingsView::applyFavTeamColor(const SettingsData &s)
         {
             if (strcmp(cs.team.id, s.favTeamId) == 0)
             {
-                UI::COL_ACCENT = UI::rgb565to888(cs.team.teamColor);
+                uint32_t c = UI::rgb565to888(cs.team.teamColor);
+                // Reject colors too dark to see on COL_BG
+                uint8_t r = (c >> 16) & 0xFF;
+                uint8_t g = (c >> 8) & 0xFF;
+                uint8_t b = c & 0xFF;
+                if (r > 96 || g > 96 || b > 96)
+                    UI::COL_ACCENT = c;
                 break;
             }
         }
@@ -124,7 +128,7 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
     _rowSprite->setTextColor(selected ? UI::COL_ACCENT : dim);
-    _rowSprite->drawString(icon, COL_ICON, _rowH / 2);
+    _rowSprite->drawString(icon, UI::COL_POS, _rowH / 2);
 
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(dim);
@@ -132,75 +136,75 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
     switch ((SettingIdx)dataIdx)
     {
     case SET_BRIGHTNESS:
-        _rowSprite->drawString("Backlight", COL_LABEL, _rowH / 2);
+        _rowSprite->drawString("Backlight", UI::COL_PRIMARY, _rowH / 2);
         if (_editing)
         {
-            _rowSprite->fillRect(COL_VALUE - 100, 0, 120, _rowH, UI::COL_BG_SEL);
+            _rowSprite->fillRect(UI::COL_END_R - 100, 0, 120, _rowH, UI::COL_BG_SEL);
             _rowSprite->setTextColor(UI::COL_ACCENT);
         }
         _rowSprite->setTextDatum(middle_right);
-        _rowSprite->drawNumber(_settings.brightness * 100 / 255, COL_VALUE, _rowH / 2);
-        _rowSprite->drawString("%", COL_VALUE + 30, _rowH / 2);
+        _rowSprite->drawNumber(_settings.brightness * 100 / 255, UI::COL_END_R, _rowH / 2);
+        _rowSprite->drawString("%", UI::COL_END_R + 30, _rowH / 2);
         break;
     case SET_UTC_OFFSET:
-        _rowSprite->drawString("UTC Offset", COL_LABEL, _rowH / 2);
+        _rowSprite->drawString("UTC Offset", UI::COL_PRIMARY, _rowH / 2);
         if (_editing)
         {
-            _rowSprite->fillRect(COL_VALUE - 100, 0, 120, _rowH, UI::COL_BG_SEL);
+            _rowSprite->fillRect(UI::COL_END_R - 100, 0, 120, _rowH, UI::COL_BG_SEL);
             _rowSprite->setTextColor(UI::COL_ACCENT);
         }
         _rowSprite->setTextDatum(middle_right);
         {
             char buf[8];
             snprintf(buf, sizeof(buf), "UTC%+d", _settings.utcOffset);
-            _rowSprite->drawString(buf, COL_VALUE, _rowH / 2);
+            _rowSprite->drawString(buf, UI::COL_END_R, _rowH / 2);
         }
         break;
     case SET_FAV_TEAM:
-        _rowSprite->drawString("Fav Team", COL_LABEL, _rowH / 2);
+        _rowSprite->drawString("Fav Team", UI::COL_PRIMARY, _rowH / 2);
         if (_editing)
         {
-            _rowSprite->fillRect(COL_VALUE - 150, 0, 170, _rowH, UI::COL_BG_SEL);
+            _rowSprite->fillRect(UI::COL_END_R - 150, 0, 170, _rowH, UI::COL_BG_SEL);
             _rowSprite->setTextColor(UI::COL_ACCENT);
         }
         _rowSprite->setTextDatum(middle_right);
         if (_settings.favTeamId[0] == '\0') {
-            _rowSprite->drawString("None", COL_VALUE, _rowH / 2);
+            _rowSprite->drawString("None", UI::COL_END_R, _rowH / 2);
         } else {
             bool found = false;
             if (cache) {
                 for (const auto& cs : cache->constructorStandings) {
                     if (strcmp(cs.team.id, _settings.favTeamId) == 0) {
-                        _rowSprite->drawString(cs.team.name, COL_VALUE, _rowH / 2);
+                        _rowSprite->drawString(cs.team.name, UI::COL_END_R, _rowH / 2);
                         found = true;
                         break;
                     }
                 }
             }
-            if (!found) _rowSprite->drawString(_settings.favTeamId, COL_VALUE, _rowH / 2);
+            if (!found) _rowSprite->drawString(_settings.favTeamId, UI::COL_END_R, _rowH / 2);
         }
         break;
     case SET_SYSINFO:
-        _rowSprite->drawString("System Info", COL_LABEL, _rowH / 2);
+        _rowSprite->drawString("System Info", UI::COL_PRIMARY, _rowH / 2);
         _rowSprite->setTextDatum(middle_right);
-        _rowSprite->setTextColor(UI::COL_TEXT_DIM);
+        _rowSprite->setTextColor(dim);
         {
             char buf[16];
             snprintf(buf, sizeof(buf), "%u KB", ESP.getFreeHeap() / 1024);
-            _rowSprite->drawString(buf, COL_VALUE, _rowH / 2);
+            _rowSprite->drawString(buf, UI::COL_END_R, _rowH / 2);
         }
         break;
     case SET_CLEAR_CACHE:
-        _rowSprite->drawString("Clear Cache & Reboot", COL_LABEL, _rowH / 2);
+        _rowSprite->drawString("Clear Cache & Reboot", UI::COL_PRIMARY, _rowH / 2);
         _rowSprite->setTextDatum(middle_right);
-        _rowSprite->setTextColor(UI::COL_ACCENT);
-        _rowSprite->drawString("PRESS", COL_VALUE, _rowH / 2);
+        _rowSprite->setTextColor(dim);
+        _rowSprite->drawString("PRESS", UI::COL_END_R, _rowH / 2);
         break;
     case SET_ABOUT:
-        _rowSprite->drawString("About", COL_LABEL, _rowH / 2);
+        _rowSprite->drawString("About", UI::COL_PRIMARY, _rowH / 2);
         _rowSprite->setTextDatum(middle_right);
-        _rowSprite->setTextColor(UI::COL_TEXT_DIM);
-        _rowSprite->drawString("v1.0", COL_VALUE, _rowH / 2);
+        _rowSprite->setTextColor(dim);
+        _rowSprite->drawString("v1.0", UI::COL_END_R, _rowH / 2);
         break;
     default:
         break;
@@ -211,7 +215,7 @@ void SettingsView::drawFooter()
 {
     _dm->footer()->draw();
     char buf[32];
-    snprintf(buf, sizeof(buf), "SET \xc2\xb7 Heap: %uK", ESP.getFreeHeap() / 1024);
+    snprintf(buf, sizeof(buf), "SET \xc2\xb7 %d/%d", _cursor + 1, SET_COUNT);
     _dm->footer()->drawCenter(buf, UI::COL_MUTED);
 }
 
@@ -266,6 +270,7 @@ void SettingsView::onLongPress()
     {
         _editing = false;
         loadSettings(_settings);
+        timeMgr->setUTCOffset(_settings.utcOffset);
         applyBrightness();
         applyFavTeamColor(_settings);
         fullRedraw();

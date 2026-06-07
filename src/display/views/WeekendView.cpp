@@ -7,21 +7,30 @@
 #include <time.h>
 
 extern TimeManager *timeMgr;
+extern DataCache *cache;
 
-static constexpr int COL_DAY = 15;
-static constexpr int COL_NAME = 75;
-static constexpr int COL_TIME = 365;
-static constexpr int COL_NEXT = 468;
+// Column offsets (using shared UI constants)
 
-WeekendView::WeekendView(LGFX *tft, DisplayManager *dm, const RaceMeeting *meeting)
-    : ScrollListView(tft, dm, 46, 5, 2), _meeting(meeting) {}
+WeekendView::WeekendView(LGFX *tft, DisplayManager *dm, int meetingRound)
+    : ScrollListView(tft, dm, 43, 5, 2, 14), _meetingRound(meetingRound) {}
 
 void WeekendView::onEnter()
 {
+    // Look up meeting from cache by round (safe: pointer lives as long as cache exists)
+    _meeting = nullptr;
+    if (cache) {
+        for (const auto &m : cache->calendar) {
+            if (m.round == _meetingRound) {
+                _meeting = &m;
+                break;
+            }
+        }
+    }
+
     if (_meeting)
     {
-        Serial.printf("[WEEKEND] Entering view for %s (Key: %d, Sessions: %d)\n",
-                      _meeting->officialName, _meeting->meetingKey, _meeting->sessionCount);
+        Serial.printf("[WEEKEND] Entering view for %s (Rd %d, Sessions: %d)\n",
+                      _meeting->officialName, _meeting->round, _meeting->sessionCount);
 
         _sessionTimes.clear();
         int utcOffset = timeMgr->getUTCOffset() * 3600;
@@ -40,7 +49,7 @@ void WeekendView::onEnter()
     }
     else
     {
-        Serial.println("[WEEKEND] ERROR: Meeting pointer is null!");
+        Serial.printf("[WEEKEND] ERROR: Round %d not found in calendar!\n", _meetingRound);
     }
     ScrollListView::onEnter();
 }
@@ -58,6 +67,18 @@ void WeekendView::drawHeader()
     char roundStr[8];
     snprintf(roundStr, sizeof(roundStr), "R%02d", _meeting->round);
     _dm->header()->draw(_meeting->officialName, _meeting->circuit.shortName, roundStr);
+
+    // Column headers (content area, below divider)
+    _tft->setTextDatum(middle_left);
+    _tft->setTextColor(UI::COL_MUTED);
+    _tft->setFont(UI::Fonts::LABEL_SMALL);
+    int chY = UI::HEADER_H + _colH / 2;
+    _tft->drawString("DAY", UI::COL_POS, chY);
+    _tft->drawString("SESSION", UI::COL_PRIMARY, chY);
+
+    _tft->setTextDatum(middle_right);
+    _tft->drawString("TIME", UI::COL_VALUE_R, chY);
+    _tft->drawString("STATUS", UI::COL_END_R, chY);
 }
 
 static const char *sessionAbbrev(const char *name)
@@ -166,24 +187,25 @@ void WeekendView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(isNext ? accentCol : textCol);
-    _rowSprite->drawString(dayStr, COL_DAY, _rowH / 2 - 6);
+    _rowSprite->drawString(dayStr, UI::COL_POS, _rowH / 2 - 6);
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
     _rowSprite->setTextColor(textCol);
-    _rowSprite->drawString(dateStr, COL_DAY, _rowH / 2 + 6);
+    _rowSprite->drawString(dateStr, UI::COL_POS, _rowH / 2 + 6);
 
-    _rowSprite->setFont(UI::Fonts::DATA_ACCENT);
+    _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(isNext ? accentCol : textCol);
-    _rowSprite->drawString(sessionAbbrev(s.name), COL_NAME, _rowH / 2);
+    _rowSprite->drawString(sessionAbbrev(s.name), UI::COL_PRIMARY, _rowH / 2);
 
     _rowSprite->setTextDatum(middle_right);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(textCol);
-    _rowSprite->drawString(timeStr, COL_TIME, _rowH / 2);
+    _rowSprite->drawString(timeStr, UI::COL_VALUE_R, _rowH / 2);
 
     if (isNext)
     {
+        _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
         _rowSprite->setTextColor(accentCol);
-        _rowSprite->drawString("NEXT", COL_NEXT, _rowH / 2);
+        _rowSprite->drawString("NEXT", UI::COL_END_R, _rowH / 2);
     }
 }
 
@@ -215,6 +237,7 @@ void WeekendView::drawFooter()
     if (nextSessionName)
     {
         time_t diff = nextSessionTime - nowLocal;
+        if (diff < 0) diff = 0;
         char cd[24];
         formatCountdown(cd, sizeof(cd), diff);
         char buf[48];
@@ -256,6 +279,7 @@ void WeekendView::tick()
     if (nextSessionName)
     {
         time_t diff = nextSessionTime - now;
+        if (diff < 0) diff = 0;
         char cd[24];
         formatCountdown(cd, sizeof(cd), diff);
         char buf[48];
@@ -281,7 +305,7 @@ void WeekendView::onPress()
     // Only Race, Qualifying, and Sprint have structured results
     if (strcmp(name, "Race") == 0 || strcmp(name, "Qualifying") == 0 || strcmp(name, "Sprint") == 0)
     {
-        int rowY = UI::HEADER_H + (_cursor - _scrollOffset) * _rowH;
+        int rowY = UI::HEADER_H + _colH + (_cursor - _scrollOffset) * _rowH;
         _tft->fillRect(0, rowY, UI::SCREEN_W, _rowH, UI::COL_BG_SEL);
         delay(40);
         _dm->launchSessionResultsView(_meeting, _cursor);

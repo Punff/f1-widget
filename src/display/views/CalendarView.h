@@ -22,5 +22,6 @@ private:
     time_t _lastFooterSec;
     int _nextRoundIdx;
     std::vector<time_t> _sessionTimes;
+    std::vector<int> _status;
     time_t _nextRoundTime;
 };

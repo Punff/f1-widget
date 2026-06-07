@@ -25,6 +25,8 @@ struct Driver
     char fullName[48];
     char broadcastName[24];
     char acronym[4];
+    char nationality[24];
+    char dateOfBirth[12];
     Team team;
 };
 

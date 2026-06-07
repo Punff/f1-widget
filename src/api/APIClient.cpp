@@ -2,8 +2,29 @@
 #include <algorithm>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <LittleFS.h>
 
 APIClient::APIClient(DataCache *cache) : _cache(cache) {}
+
+// Convert "VERSTAPPEN" → "Verstappen", "DE VRIES" → "De Vries"
+static void properCase(char *out, size_t outSize, const char *in)
+{
+    if (!in || !in[0]) { out[0] = 0; return; }
+    bool capNext = true;
+    size_t wi = 0;
+    for (const char *p = in; *p && wi < outSize - 1; p++) {
+        if (*p == ' ') {
+            out[wi++] = ' ';
+            capNext = true;
+        } else if (capNext) {
+            out[wi++] = toupper(*p);
+            capNext = false;
+        } else {
+            out[wi++] = tolower(*p);
+        }
+    }
+    out[wi] = 0;
+}
 
 bool APIClient::syncAll()
 {
@@ -29,45 +50,7 @@ bool APIClient::syncDriversAndStandings()
     String season = String(_cache->currentSeason);
     Serial.printf("[SYNC] Drivers for %s...\n", season.c_str());
 
-    // 1. Drivers from OpenF1 — fetch body first, close HTTP, THEN parse
-    String driverJson;
-    {
-        WiFiClientSecure client;
-        client.setInsecure();
-        HTTPClient http;
-        http.begin(client, "https://api.openf1.org/v1/drivers?session_key=latest");
-        if (http.GET() == HTTP_CODE_OK)
-            driverJson = http.getString();
-    }
-
-    if (driverJson.length() > 0)
-    {
-        JsonDocument doc;
-        if (!deserializeJson(doc, driverJson) && doc.is<JsonArray>())
-        {
-            _cache->driverStandings.clear();
-            _cache->driverStandings.reserve(doc.as<JsonArray>().size());
-            for (JsonObject d : doc.as<JsonArray>())
-            {
-                DriverStanding ds;
-                ds.driver.number = d["driver_number"];
-                strlcpy(ds.driver.firstName, d["first_name"] | "", sizeof(ds.driver.firstName));
-                strlcpy(ds.driver.lastName, d["last_name"] | "", sizeof(ds.driver.lastName));
-                strlcpy(ds.driver.fullName, d["full_name"] | "", sizeof(ds.driver.fullName));
-                strlcpy(ds.driver.broadcastName, d["broadcast_name"] | "", sizeof(ds.driver.broadcastName));
-                strlcpy(ds.driver.acronym, d["name_acronym"] | "", sizeof(ds.driver.acronym));
-                strlcpy(ds.driver.team.name, d["team_name"] | "", sizeof(ds.driver.team.name));
-                ds.driver.team.teamColor = DataCache::hexTo565(d["team_colour"]);
-                ds.position = 0;
-                ds.points = 0;
-                ds.wins = 0;
-                _cache->driverStandings.push_back(ds);
-            }
-            Serial.printf("[SYNC] %zu drivers from OpenF1\n", _cache->driverStandings.size());
-        }
-    }
-
-    // 2. Standings from Jolpica — fetch body first, close HTTP, THEN parse
+    // 1. Standings from Jolpica — full list of championship drivers (source of truth)
     String standingJson;
     {
         WiFiClientSecure client;
@@ -77,49 +60,245 @@ bool APIClient::syncDriversAndStandings()
         if (http.GET() == HTTP_CODE_OK)
             standingJson = http.getString();
     }
+    bool hasStandings = standingJson.length() > 0;
 
-    if (standingJson.length() > 0)
+    // 2. Drivers from OpenF1 — supplementary data (team colors, broadcast names)
+    String driverJson;
     {
+        WiFiClientSecure client;
+        client.setInsecure();
+        HTTPClient http;
+        http.begin(client, "https://api.openf1.org/v1/drivers?session_key=latest");
+        if (http.GET() == HTTP_CODE_OK)
+            driverJson = http.getString();
+    }
+    bool hasDrivers = driverJson.length() > 0;
+
+    if (!hasStandings && !hasDrivers) return false;
+
+    // Parse OpenF1 drivers into temp storage for lookup by acronym
+    struct OpenF1Info {
+        char acronym[4];
+        char firstName[16];
+        char lastName[24];
+        char fullName[48];
+        char broadcastName[24];
+        char teamName[64];
+        char countryCode[4];
+        uint16_t teamColor;
+        int number;
+    };
+    std::vector<OpenF1Info> openF1Drivers;
+    if (hasDrivers) {
+        JsonDocument doc;
+        if (!deserializeJson(doc, driverJson) && doc.is<JsonArray>()) {
+            openF1Drivers.reserve(doc.as<JsonArray>().size());
+            for (JsonObject d : doc.as<JsonArray>()) {
+                OpenF1Info di;
+                strlcpy(di.acronym, d["name_acronym"] | "", sizeof(di.acronym));
+                strlcpy(di.firstName, d["first_name"] | "", sizeof(di.firstName));
+                strlcpy(di.lastName, d["last_name"] | "", sizeof(di.lastName));
+                strlcpy(di.fullName, d["full_name"] | "", sizeof(di.fullName));
+                strlcpy(di.broadcastName, d["broadcast_name"] | "", sizeof(di.broadcastName));
+                strlcpy(di.teamName, d["team_name"] | "", sizeof(di.teamName));
+                strlcpy(di.countryCode, d["country_code"] | "", sizeof(di.countryCode));
+                di.teamColor = DataCache::hexTo565(d["team_colour"]);
+                di.number = d["driver_number"];
+                openF1Drivers.push_back(di);
+            }
+        }
+    }
+
+    auto findOpenF1 = [&](const char *code) -> OpenF1Info* {
+        for (auto &di : openF1Drivers)
+            if (strcmp(di.acronym, code) == 0) return &di;
+        return nullptr;
+    };
+
+    _cache->driverStandings.clear();
+    _cache->driverStandings.reserve(hasStandings ? 24 : openF1Drivers.size());
+
+    if (hasStandings)
+    {
+        // Build from Jolpica (all championship drivers), merge OpenF1 data
         JsonDocument doc;
         if (!deserializeJson(doc, standingJson))
         {
             JsonArray lists = doc["MRData"]["StandingsTable"]["StandingsLists"];
             if (lists.size() > 0)
             {
-                int matched = 0;
                 JsonArray dsArr = lists[0]["DriverStandings"].as<JsonArray>();
                 for (JsonObject s : dsArr)
                 {
-                    const char *code = s["Driver"]["code"];
-                    if (!code) continue;
-                    float pts = s["points"].as<float>();
-                    for (auto &ds : _cache->driverStandings)
+                    DriverStanding ds;
+                    ds.position = s["position"].as<int>();
+                    ds.points = s["points"].as<float>();
+                    ds.wins = s["wins"].as<int>();
+                    ds.driver.number = s["Driver"]["permanentNumber"].as<int>();
+
+                    const char *code = s["Driver"]["code"] | "?";
+                    Serial.printf("[SYNC] %s: Pts=%.1f Wins=%d Pos=%d\n", code, ds.points, ds.wins, ds.position);
+
+                    strlcpy(ds.driver.acronym, s["Driver"]["code"] | "", sizeof(ds.driver.acronym));
+                    strlcpy(ds.driver.firstName, s["Driver"]["givenName"] | "", sizeof(ds.driver.firstName));
                     {
-                        if (strcmp(ds.driver.acronym, code) == 0)
-                        {
-                            ds.points = pts;
-                            matched++;
-                            break;
-                        }
+                        const char *rawLast = s["Driver"]["familyName"] | "";
+                        char properLast[24];
+                        properCase(properLast, sizeof(properLast), rawLast);
+                        strlcpy(ds.driver.lastName, properLast, sizeof(ds.driver.lastName));
+                        String full = String(s["Driver"]["givenName"] | "") + " " + String(properLast);
+                        strlcpy(ds.driver.fullName, full.c_str(), sizeof(ds.driver.fullName));
                     }
+                    strlcpy(ds.driver.broadcastName, s["Driver"]["code"] | "", sizeof(ds.driver.broadcastName));
+                    strlcpy(ds.driver.nationality, s["Driver"]["nationality"] | "", sizeof(ds.driver.nationality));
+                    strlcpy(ds.driver.dateOfBirth, s["Driver"]["dateOfBirth"] | "", sizeof(ds.driver.dateOfBirth));
+
+                    // Constructor info
+                    JsonArray constructors = s["Constructors"].as<JsonArray>();
+                    if (constructors.size() > 0) {
+                        strlcpy(ds.driver.team.name, constructors[0]["name"] | "", sizeof(ds.driver.team.name));
+                        strlcpy(ds.driver.team.id, constructors[0]["constructorId"] | "", sizeof(ds.driver.team.id));
+                    }
+
+                    // Merge OpenF1 data (richer names, team colors, country code)
+                    OpenF1Info *ofi = findOpenF1(ds.driver.acronym);
+                    if (ofi) {
+                        strlcpy(ds.driver.firstName, ofi->firstName, sizeof(ds.driver.firstName));
+                        strlcpy(ds.driver.lastName, ofi->lastName, sizeof(ds.driver.lastName));
+                        strlcpy(ds.driver.fullName, ofi->fullName, sizeof(ds.driver.fullName));
+                        strlcpy(ds.driver.broadcastName, ofi->broadcastName, sizeof(ds.driver.broadcastName));
+                        strlcpy(ds.driver.team.name, ofi->teamName, sizeof(ds.driver.team.name));
+                        if (ofi->countryCode[0]) strlcpy(ds.driver.nationality, ofi->countryCode, sizeof(ds.driver.nationality));
+                        ds.driver.team.teamColor = ofi->teamColor;
+                        ds.driver.number = ofi->number;
+                    } else {
+                        ds.driver.team.teamColor = 0x7BEF;
+                    }
+
+                    _cache->driverStandings.push_back(ds);
                 }
-                Serial.printf("[SYNC] Matched %d drivers by points\n", matched);
+            }
+        }
+
+        // Append any OpenF1 drivers not in Jolpica standings (reserves/test drivers)
+        for (auto &ofi : openF1Drivers) {
+            bool found = false;
+            for (auto &ds : _cache->driverStandings) {
+                if (strcmp(ds.driver.acronym, ofi.acronym) == 0) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                DriverStanding ds;
+                ds.position = 0;
+                ds.points = 0;
+                ds.wins = 0;
+                ds.driver.number = ofi.number;
+                strlcpy(ds.driver.acronym, ofi.acronym, sizeof(ds.driver.acronym));
+                strlcpy(ds.driver.firstName, ofi.firstName, sizeof(ds.driver.firstName));
+                strlcpy(ds.driver.lastName, ofi.lastName, sizeof(ds.driver.lastName));
+                strlcpy(ds.driver.fullName, ofi.fullName, sizeof(ds.driver.fullName));
+                strlcpy(ds.driver.broadcastName, ofi.broadcastName, sizeof(ds.driver.broadcastName));
+                strlcpy(ds.driver.team.name, ofi.teamName, sizeof(ds.driver.team.name));
+                ds.driver.team.teamColor = ofi.teamColor;
+                _cache->driverStandings.push_back(ds);
             }
         }
     }
-
-    if (driverJson.length() == 0 && standingJson.length() == 0) {
-        return false;
+    else
+    {
+        // Fallback: use only OpenF1 drivers (no Jolpica available)
+        for (auto &ofi : openF1Drivers) {
+            DriverStanding ds;
+            ds.position = 0;
+            ds.points = 0;
+            ds.wins = 0;
+            ds.driver = {};
+            ds.driver.number = ofi.number;
+            strlcpy(ds.driver.acronym, ofi.acronym, sizeof(ds.driver.acronym));
+            strlcpy(ds.driver.firstName, ofi.firstName, sizeof(ds.driver.firstName));
+            strlcpy(ds.driver.lastName, ofi.lastName, sizeof(ds.driver.lastName));
+            strlcpy(ds.driver.fullName, ofi.fullName, sizeof(ds.driver.fullName));
+            strlcpy(ds.driver.broadcastName, ofi.broadcastName, sizeof(ds.driver.broadcastName));
+            strlcpy(ds.driver.team.name, ofi.teamName, sizeof(ds.driver.team.name));
+            ds.driver.team.teamColor = ofi.teamColor;
+            _cache->driverStandings.push_back(ds);
+        }
     }
 
-    // Sort by points descending and assign positions
-    std::sort(_cache->driverStandings.begin(), _cache->driverStandings.end(),
-              [](const DriverStanding &a, const DriverStanding &b) { return a.points > b.points; });
+    // Post-process: normalize all names to proper case (catches OpenF1 uppercase too)
+    for (auto &ds : _cache->driverStandings) {
+        char proper[24];
+        properCase(proper, sizeof(proper), ds.driver.lastName);
+        strlcpy(ds.driver.lastName, proper, sizeof(ds.driver.lastName));
+        String full = String(ds.driver.firstName) + " " + String(proper);
+        strlcpy(ds.driver.fullName, full.c_str(), sizeof(ds.driver.fullName));
+    }
+
+    // Sort by points descending (position 0 entries at bottom)
+    std::stable_sort(_cache->driverStandings.begin(), _cache->driverStandings.end(),
+              [](const DriverStanding &a, const DriverStanding &b) {
+                  if ((a.position == 0) != (b.position == 0))
+                      return a.position > 0; // drivers with position=0 at end
+                  return a.points > b.points;
+              });
 
     for (size_t i = 0; i < _cache->driverStandings.size(); i++)
         _cache->driverStandings[i].position = (int)(i + 1);
 
+    Serial.printf("[SYNC] %zu total drivers (Jolpica + OpenF1 merged)\n", _cache->driverStandings.size());
     return true;
+}
+
+// Persistent constructor team color file (survives reboots, used when OpenF1 is unavailable)
+static const char *TEAM_CLR_PATH = "/team_clr.bin";
+static const uint32_t TEAM_CLR_MAGIC = 0x434C5254; // "TCLR"
+
+static void saveConstructorColors(const std::vector<ConstructorStanding> &standings)
+{
+    File f = LittleFS.open(TEAM_CLR_PATH, FILE_WRITE);
+    if (!f) return;
+    f.write((uint8_t *)&TEAM_CLR_MAGIC, sizeof(TEAM_CLR_MAGIC));
+    size_t count = standings.size();
+    f.write((uint8_t *)&count, sizeof(count));
+    for (auto &cs : standings) {
+        f.write((uint8_t *)cs.team.id, sizeof(cs.team.id));
+        f.write((uint8_t *)&cs.team.teamColor, sizeof(cs.team.teamColor));
+    }
+    f.close();
+    Serial.printf("[SYNC] Saved %zu constructor colors to %s\n", count, TEAM_CLR_PATH);
+}
+
+static bool loadConstructorColors(std::vector<ConstructorStanding> &standings)
+{
+    File f = LittleFS.open(TEAM_CLR_PATH, FILE_READ);
+    if (!f) return false;
+    uint32_t magic;
+    if (f.read((uint8_t *)&magic, sizeof(magic)) != sizeof(magic) || magic != TEAM_CLR_MAGIC) {
+        f.close(); return false;
+    }
+    size_t count;
+    if (f.read((uint8_t *)&count, sizeof(count)) != sizeof(count)) {
+        f.close(); return false;
+    }
+    int applied = 0;
+    for (size_t i = 0; i < count; i++) {
+        char id[32] = {};
+        uint16_t color;
+        if (f.read((uint8_t *)id, sizeof(id)) != sizeof(id)) break;
+        if (f.read((uint8_t *)&color, sizeof(color)) != sizeof(color)) break;
+        for (auto &cs : standings) {
+            if (strcmp(cs.team.id, id) == 0) {
+                cs.team.teamColor = color;
+                applied++;
+                break;
+            }
+        }
+    }
+    f.close();
+    Serial.printf("[SYNC] Restored %d constructor colors from %s\n", applied, TEAM_CLR_PATH);
+    return applied > 0;
 }
 
 bool APIClient::syncConstructors()
@@ -154,18 +333,44 @@ bool APIClient::syncConstructors()
         strlcpy(cs.team.name, s["Constructor"]["name"] | "", sizeof(cs.team.name));
         strlcpy(cs.team.id, s["Constructor"]["constructorId"] | "", sizeof(cs.team.id));
 
-        // Match color from driver data
+        // Match by constructor ID (case-insensitive) against driver team names
         cs.team.teamColor = 0x4208;
-        for (const auto &ds : _cache->driverStandings)
         {
-            if (strstr(ds.driver.team.name, cs.team.name) != nullptr)
-            {
-                cs.team.teamColor = ds.driver.team.teamColor;
-                break;
+            char idPat[32];
+            strlcpy(idPat, cs.team.id, sizeof(idPat));
+            for (char *p = idPat; *p; p++) if (*p == '_') *p = ' ';
+
+            for (const auto &ds : _cache->driverStandings) {
+                bool match = false;
+                const char *h = ds.driver.team.name;
+                while (*h && !match) {
+                    const char *a = h, *b = idPat;
+                    while (*a && *b && tolower(*a) == tolower(*b)) { a++; b++; }
+                    if (*b == '\0') match = true;
+                    h++;
+                }
+                if (match) {
+                    cs.team.teamColor = ds.driver.team.teamColor;
+                    break;
+                }
             }
         }
         _cache->constructorStandings.push_back(cs);
     }
+
+    // Check if OpenF1 provided real colors; if so, save for next time
+    bool hasRealColors = false;
+    for (auto &cs : _cache->constructorStandings)
+        if (cs.team.teamColor != 0x4208 && cs.team.teamColor != 0)
+            { hasRealColors = true; break; }
+
+    if (hasRealColors) {
+        saveConstructorColors(_cache->constructorStandings);
+    } else {
+        // Restore previously saved colors (e.g., when OpenF1 is auth-restricted)
+        loadConstructorColors(_cache->constructorStandings);
+    }
+
     return true;
 }
 

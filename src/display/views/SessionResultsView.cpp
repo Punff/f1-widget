@@ -5,16 +5,12 @@
 
 extern DataCache *cache;
 
-static constexpr int COL_POS = 15;
-static constexpr int COL_DRIVER = 62;
-static constexpr int COL_TEAM = 155;
-static constexpr int COL_TIME = 350;
-static constexpr int COL_PTS = 465;
+// Column offsets (using shared UI constants)
 
 SessionResultsView::SessionResultsView(LGFX *tft, DisplayManager *dm, int round,
                                        const char *officialName, const char *circuitName,
                                        const char *sessionName)
-    : ScrollListView(tft, dm, 46, 5, 2),
+    : ScrollListView(tft, dm, 43, 5, 2, 14),
       _meetingRound(round),
       _fetched(false), _fetchFailed(false)
 {
@@ -71,13 +67,17 @@ void SessionResultsView::drawHeader()
     snprintf(roundStr, sizeof(roundStr), "R%02d", _meetingRound);
     _dm->header()->draw(_sessionName, _circuitName, roundStr);
 
+    _tft->setTextDatum(middle_left);
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
-    _tft->drawString("POS", COL_POS, 33);
-    _tft->drawString("DRIVER", COL_DRIVER, 33);
-    _tft->setTextDatum(top_right);
-    _tft->drawString("TIME", COL_TIME, 33);
-    _tft->drawString("PTS", COL_PTS, 33);
+    int chY = UI::HEADER_H + _colH / 2;
+    _tft->drawString("POS", UI::COL_POS, chY);
+    _tft->drawString("DRIVER", UI::COL_PRIMARY, chY);
+    _tft->drawString("TEAM", UI::COL_SECONDARY, chY);
+
+    _tft->setTextDatum(middle_right);
+    _tft->drawString("TIME", UI::COL_VALUE_R, chY);
+    _tft->drawString("PTS", UI::COL_END_R, chY);
 }
 
 void SessionResultsView::drawRow(int dataIdx, bool selected, int dist)
@@ -127,29 +127,29 @@ void SessionResultsView::drawRow(int dataIdx, bool selected, int dist)
     _rowSprite->setTextDatum(middle_left);
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(teamColor);
-    _rowSprite->drawNumber(sr.position, COL_POS, _rowH / 2);
+    _rowSprite->drawNumber(sr.position, UI::COL_POS, _rowH / 2);
 
     if (sr.isFastestLap)
-        _rowSprite->fillCircle(COL_DRIVER - 9, _rowH / 2, 3, UI::COL_F1_PURPLE);
+        _rowSprite->fillCircle(UI::COL_PRIMARY - 9, _rowH / 2, 3, UI::COL_F1_PURPLE);
 
     _rowSprite->setTextColor(dim);
-    _rowSprite->drawString(driver ? driver->acronym : sr.driverCode, COL_DRIVER, _rowH / 2);
+    _rowSprite->drawString(driver ? driver->acronym : sr.driverCode, UI::COL_PRIMARY, _rowH / 2);
 
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
     _rowSprite->setTextColor(dim);
-    _rowSprite->drawString(sr.constructorName, COL_TEAM, _rowH / 2);
+    _rowSprite->drawString(sr.constructorName, UI::COL_SECONDARY, _rowH / 2);
 
     _rowSprite->setTextDatum(middle_right);
     _rowSprite->setFont(UI::Fonts::LABEL_SMALL);
     _rowSprite->setTextColor(dim);
-    _rowSprite->drawString(sr.timeOrStatus, COL_TIME, _rowH / 2);
+    _rowSprite->drawString(sr.timeOrStatus, UI::COL_VALUE_R, _rowH / 2);
 
     _rowSprite->setFont(UI::Fonts::BODY_MAIN);
     _rowSprite->setTextColor(teamColor);
     char ptsStr[16];
     if (sr.points == (int)sr.points) snprintf(ptsStr, sizeof(ptsStr), "%d", (int)sr.points);
     else snprintf(ptsStr, sizeof(ptsStr), "%.1f", sr.points);
-    _rowSprite->drawString(ptsStr, COL_PTS, _rowH / 2);
+    _rowSprite->drawString(ptsStr, UI::COL_END_R, _rowH / 2);
 }
 
 void SessionResultsView::drawFooter()
@@ -174,7 +174,7 @@ void SessionResultsView::drawFooter()
             {
                 winnerCode = ds.driver.acronym;
                 uint16_t tc = ds.driver.team.teamColor;
-                color = ((tc & 0xF800) << 8) | ((tc & 0x07E0) << 5) | ((tc & 0x001F) << 3);
+                color = UI::rgb565to888(tc);
                 break;
             }
         }
@@ -188,14 +188,6 @@ void SessionResultsView::drawFooter()
     }
 
     _dm->footer()->drawCenter(buf, color);
-}
-
-void SessionResultsView::onTurnRight() {
-    ScrollListView::onTurnRight();
-}
-
-void SessionResultsView::onTurnLeft() {
-    ScrollListView::onTurnLeft();
 }
 
 void SessionResultsView::onPress()
