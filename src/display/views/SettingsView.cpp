@@ -1,16 +1,20 @@
 #include "SettingsView.h"
+#include "WifiSettingsView.h"
+#include "DataSettingsView.h"
 #include "../DisplayManager.h"
 #include "../../time/TimeManager.h"
 #include "../../../include/UI_Fonts.h"
+#include "../../config.h"
 #include <LittleFS.h>
 #include <esp_system.h>
 
 #include "../../data/DataCache.h"
+#include "../../wifi/WiFiManager.h"
 
 extern TimeManager *timeMgr;
 extern DataCache *cache;
 
-static constexpr uint32_t SETTINGS_MAGIC = 0x5E772; // Incremented for favTeamId
+static constexpr uint32_t SETTINGS_MAGIC = 0x5E773; // Incremented for displayTimeoutSec
 static constexpr const char *SETTINGS_PATH = "/settings.bin";
 
 // Column offsets (using shared UI constants)
@@ -33,6 +37,7 @@ void SettingsView::loadSettings(SettingsData &s)
     s.magic = SETTINGS_MAGIC;
     s.brightness = 255;
     s.utcOffset = 2;
+    s.displayTimeoutSec = 0;
     s.favTeamId[0] = '\0';
 }
 
@@ -112,11 +117,14 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
     case SET_FAV_TEAM:
         icon = "FAV";
         break;
-    case SET_SYSINFO:
-        icon = "SYS";
+    case SET_DISPLAY_TIMEOUT:
+        icon = "DTO";
         break;
-    case SET_CLEAR_CACHE:
-        icon = "CLR";
+    case SET_WIFI:
+        icon = "WIF";
+        break;
+    case SET_DATA:
+        icon = "DAT";
         break;
     case SET_ABOUT:
         icon = "ABT";
@@ -184,18 +192,33 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
             if (!found) _rowSprite->drawString(_settings.favTeamId, UI::COL_END_R, _rowH / 2);
         }
         break;
-    case SET_SYSINFO:
-        _rowSprite->drawString("System Info", UI::COL_PRIMARY, _rowH / 2);
+    case SET_DISPLAY_TIMEOUT:
+    {
+        _rowSprite->drawString("Display Timeout", UI::COL_PRIMARY, _rowH / 2);
+        if (_editing)
+        {
+            _rowSprite->fillRect(UI::COL_END_R - 100, 0, 120, _rowH, UI::COL_BG_SEL);
+            _rowSprite->setTextColor(UI::COL_ACCENT);
+        }
+        _rowSprite->setTextDatum(middle_right);
+        static const int opts[] = {0, 30, 60, 120, 300};
+        static const char *labels[] = {"Never", "30s", "60s", "2m", "5m"};
+        int idx = 0;
+        for (int i = 0; i < 5; i++) { if (_settings.displayTimeoutSec == opts[i]) { idx = i; break; } }
+        _rowSprite->drawString(labels[idx], UI::COL_END_R, _rowH / 2);
+        break;
+    }
+    case SET_WIFI:
+        _rowSprite->drawString("WiFi Networks", UI::COL_PRIMARY, _rowH / 2);
         _rowSprite->setTextDatum(middle_right);
         _rowSprite->setTextColor(dim);
-        {
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%u KB", ESP.getFreeHeap() / 1024);
-            _rowSprite->drawString(buf, UI::COL_END_R, _rowH / 2);
-        }
+        if (wifi_has_saved())
+            _rowSprite->drawString("SAVED", UI::COL_END_R, _rowH / 2);
+        else
+            _rowSprite->drawString("NONE", UI::COL_END_R, _rowH / 2);
         break;
-    case SET_CLEAR_CACHE:
-        _rowSprite->drawString("Clear Cache & Reboot", UI::COL_PRIMARY, _rowH / 2);
+    case SET_DATA:
+        _rowSprite->drawString("Data Management", UI::COL_PRIMARY, _rowH / 2);
         _rowSprite->setTextDatum(middle_right);
         _rowSprite->setTextColor(dim);
         _rowSprite->drawString("PRESS", UI::COL_END_R, _rowH / 2);
@@ -204,7 +227,7 @@ void SettingsView::drawRow(int dataIdx, bool selected, int dist)
         _rowSprite->drawString("About", UI::COL_PRIMARY, _rowH / 2);
         _rowSprite->setTextDatum(middle_right);
         _rowSprite->setTextColor(dim);
-        _rowSprite->drawString("v1.0", UI::COL_END_R, _rowH / 2);
+        _rowSprite->drawString(APP_VERSION, UI::COL_END_R, _rowH / 2);
         break;
     default:
         break;
@@ -227,23 +250,25 @@ void SettingsView::onPress()
         timeMgr->setUTCOffset(_settings.utcOffset);
         saveSettings(_settings);
         applyBrightness();
+        _dm->setDisplayTimeout(_settings.displayTimeoutSec);
         applyFavTeamColor(_settings);
         fullRedraw();
         return;
     }
     switch ((SettingIdx)_cursor)
     {
+    case SET_WIFI:
+        _dm->launchWifiSettings();
+        break;
+    case SET_DATA:
+        _dm->launchDataSettings();
+        break;
     case SET_BRIGHTNESS:
     case SET_UTC_OFFSET:
     case SET_FAV_TEAM:
+    case SET_DISPLAY_TIMEOUT:
         _editing = true;
         partialRedraw(_cursor);
-        break;
-    case SET_CLEAR_CACHE:
-        cache->clear();
-        saveSettings(_settings);
-        delay(500);
-        ESP.restart();
         break;
     default:
         break;
@@ -272,6 +297,7 @@ void SettingsView::onLongPress()
         loadSettings(_settings);
         timeMgr->setUTCOffset(_settings.utcOffset);
         applyBrightness();
+        _dm->setDisplayTimeout(_settings.displayTimeoutSec);
         applyFavTeamColor(_settings);
         fullRedraw();
     }
@@ -296,6 +322,17 @@ void SettingsView::modifyValue(int delta)
         int v = _settings.utcOffset + delta;
         _settings.utcOffset = constrain(v, -12, 14);
         timeMgr->setUTCOffset(_settings.utcOffset);
+        drawSingleRow(_cursor - _scrollOffset);
+        break;
+    }
+    case SET_DISPLAY_TIMEOUT:
+    {
+        static const int opts[] = {0, 30, 60, 120, 300};
+        int idx = 0;
+        for (int i = 0; i < 5; i++) { if (_settings.displayTimeoutSec == opts[i]) { idx = i; break; } }
+        idx = (idx + delta + 5) % 5;
+        _settings.displayTimeoutSec = opts[idx];
+        _dm->setDisplayTimeout(_settings.displayTimeoutSec);
         drawSingleRow(_cursor - _scrollOffset);
         break;
     }
@@ -332,4 +369,7 @@ void SettingsView::modifyValue(int delta)
         break;
     }
 }
-void SettingsView::applyBrightness() { ledcWrite(0, _settings.brightness); }
+void SettingsView::applyBrightness() {
+    ledcWrite(0, _settings.brightness);
+    _dm->setUserBrightness(_settings.brightness);
+}

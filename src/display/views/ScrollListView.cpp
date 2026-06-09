@@ -18,9 +18,6 @@ ScrollListView::~ScrollListView()
 void ScrollListView::onEnter()
 {
     _rowSprite = _dm->rowSprite();
-    if (_rowSprite && !_rowSprite->getBuffer()) {
-        Serial.println("[SPRITE] Buffer null at onEnter");
-    }
 
     fullRedraw();
 }

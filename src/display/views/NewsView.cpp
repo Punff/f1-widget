@@ -138,7 +138,7 @@ void NewsView::renderNormal(const NewsArticle &a)
 void NewsView::renderOverlay(const NewsArticle &a)
 {
     // Clear with slightly different background for depth, including bottom hint area
-    _tft->fillRect(0, UI::HEADER_H + 2, UI::SCREEN_W, UI::SCREEN_H - UI::HEADER_H - 2, 0x0A0A0A);
+    _tft->fillRect(0, UI::HEADER_H + 2, UI::SCREEN_W, UI::SCREEN_H - UI::HEADER_H - 2, UI::COL_BG_ALT);
 
     // Generate QR Code
     QRCode qrcode;
@@ -337,7 +337,7 @@ void NewsView::showLoading()
 
 void NewsView::fetchNews()
 {
-    APIClient api(cache);
-    bool ok = api.fetchNewsFeed();
+    APIClient localApi(cache);
+    bool ok = localApi.fetchNewsFeed();
     Serial.printf("[NEWS] RSS fetch %s\n", ok ? "OK" : "FAILED");
 }

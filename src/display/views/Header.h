@@ -41,6 +41,6 @@ private:
     static constexpr int CLOCK_W = 80;
     static constexpr int CLOCK_H = 22;
 
-    static constexpr unsigned long COLOR_MS = 80;
-    static constexpr unsigned long WHITE_DECAY_MS = 400;
+    static constexpr unsigned long COLOR_MS = 140;
+    static constexpr unsigned long WHITE_DECAY_MS = 500;
 };

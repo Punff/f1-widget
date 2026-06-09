@@ -1,8 +1,11 @@
 #include "DisplayManager.h"
+#include "views/WifiSettingsView.h"
+#include "views/DataSettingsView.h"
 #include "../../include/LGFX_Config.h"
 #include "../time/TimeManager.h"
 #include "../time/TimeUtils.h"
 #include "../data/DataCache.h"
+#include "../api/APIClient.h"
 #include <WiFi.h>
 #include <LittleFS.h>
 #include <time.h>
@@ -11,6 +14,7 @@ uint32_t UI::COL_ACCENT = UI::COL_ACCENT_DEFAULT;
 
 extern TimeManager *timeMgr;
 extern DataCache *cache;
+extern APIClient *api;
 
 void DisplayManager::drawSplash()
 {
@@ -47,7 +51,9 @@ void DisplayManager::drawSplash()
 
     _tft->setTextColor(UI::COL_MUTED);
     _tft->setFont(UI::Fonts::LABEL_SMALL);
-    _tft->drawString("2026 Season", UI::SCREEN_W / 2, 200);
+    char seasonStr[16];
+    snprintf(seasonStr, sizeof(seasonStr), "%d Season", cache ? cache->currentSeason : 2026);
+    _tft->drawString(seasonStr, UI::SCREEN_W / 2, 200);
 }
 
 void DisplayManager::drawBootStatus(const char *msg)
@@ -83,8 +89,9 @@ DisplayManager::DisplayManager(LGFX *tft)
       _currentView(nullptr), _previousView(nullptr),
       _menuView(nullptr), _viewRegistry{},
       _weekendView(nullptr), _sessionResultsView(nullptr),
-      _driverDetailView(nullptr),
-      _lastAutoSwitchRound(-1), _lastAutoSwitchSession(-1), _lastAutoSwitchMs(0)
+      _driverDetailView(nullptr), _wifiSettingsView(nullptr), _dataSettingsView(nullptr),
+      _lastAutoSwitchRound(-1), _lastAutoSwitchSession(-1), _lastAutoSwitchMs(0), _lastAutoSyncRound(-1),
+      _displayTimeoutSec(0), _lastActivityMs(0), _displayOff(false), _userBrightness(255)
 {
     _sharedRowSprite = new LGFX_Sprite(_tft);
     // Fixed size — never reallocated. All views use same MAX_ROW_H.
@@ -118,8 +125,18 @@ void DisplayManager::loop()
         bool wifiOk = (WiFi.status() == WL_CONNECTED);
         if (wifiOk != lastWifiOk) {
             lastWifiOk = wifiOk;
+            if (wifiOk && timeMgr && !timeMgr->isSynced())
+                timeMgr->syncNTP();
             _footer->setWifiConnected(wifiOk);
             _footer->redrawWifi();
+        }
+
+        // Display timeout — dim backlight when idle
+        if (_displayTimeoutSec > 0 && !_displayOff &&
+            now - _lastActivityMs > (unsigned long)_displayTimeoutSec * 1000)
+        {
+            _displayOff = true;
+            ledcWrite(0, 0);
         }
     }
 
@@ -128,6 +145,16 @@ void DisplayManager::loop()
         _lastAutoSwitchMs = now;
         updateAutoSwitch();
     }
+}
+
+void DisplayManager::setUserBrightness(uint8_t brightness)
+{
+    _userBrightness = brightness;
+}
+
+void DisplayManager::setDisplayTimeout(uint16_t sec)
+{
+    _displayTimeoutSec = sec;
 }
 
 void DisplayManager::setView(IView *view)
@@ -151,8 +178,19 @@ void DisplayManager::setView(IView *view)
         delete _driverDetailView;
         _driverDetailView = nullptr;
     }
+    if (_currentView == _wifiSettingsView) {
+        if (_previousView == _wifiSettingsView) _previousView = nullptr;
+        delete _wifiSettingsView;
+        _wifiSettingsView = nullptr;
+    }
+    if (_currentView == _dataSettingsView) {
+        if (_previousView == _dataSettingsView) _previousView = nullptr;
+        delete _dataSettingsView;
+        _dataSettingsView = nullptr;
+    }
 
     _currentView = view;
+    _lastActivityMs = millis();
 
     _header->markDirty();
     _footer->markDirty();
@@ -197,24 +235,32 @@ IView *DisplayManager::currentView() const { return _currentView; }
 
 void DisplayManager::onTurnRight()
 {
+    _lastActivityMs = millis();
+    if (_displayOff) { _displayOff = false; ledcWrite(0, _userBrightness); }
     if (_header) _header->encoderPulse(1);
     if (_currentView)
         _currentView->onTurnRight();
 }
 void DisplayManager::onTurnLeft()
 {
+    _lastActivityMs = millis();
+    if (_displayOff) { _displayOff = false; ledcWrite(0, _userBrightness); }
     if (_header) _header->encoderPulse(-1);
     if (_currentView)
         _currentView->onTurnLeft();
 }
 void DisplayManager::onPress()
 {
+    _lastActivityMs = millis();
+    if (_displayOff) { _displayOff = false; ledcWrite(0, _userBrightness); }
     if (_header) _header->encoderPress();
     if (_currentView)
         _currentView->onPress();
 }
 void DisplayManager::onLongPress()
 {
+    _lastActivityMs = millis();
+    if (_displayOff) { _displayOff = false; ledcWrite(0, _userBrightness); }
     if (_header) _header->encoderLongPress();
     if (_currentView) _currentView->onLongPress();
 }
@@ -266,6 +312,18 @@ void DisplayManager::updateAutoSwitch()
             return;
         }
     }
+
+    // Auto-sync: if any weekend's race date has passed, sync leaderboard data
+    for (auto &rm : cache->calendar)
+    {
+        if (rm.sessionCount == 0) continue;
+        if (strcmp(rm.date, todayStr) < 0 && rm.round > _lastAutoSyncRound)
+        {
+            _lastAutoSyncRound = rm.round;
+            if (api) api->syncAll();
+            return;
+        }
+    }
 }
 
 void DisplayManager::launchWeekendView(const RaceMeeting *meeting) {
@@ -302,6 +360,26 @@ void DisplayManager::launchDriverDetailView(int driverIdx) {
     _previousView = _currentView;
     _driverDetailView = new DriverDetailView(_tft, this, driverIdx);
     setView(_driverDetailView);
+}
+
+void DisplayManager::launchWifiSettings() {
+    if (_wifiSettingsView) {
+        if (_currentView == _wifiSettingsView) _currentView = nullptr;
+        delete _wifiSettingsView;
+    }
+    _previousView = _currentView;
+    _wifiSettingsView = new WifiSettingsView(_tft, this);
+    setView(_wifiSettingsView);
+}
+
+void DisplayManager::launchDataSettings() {
+    if (_dataSettingsView) {
+        if (_currentView == _dataSettingsView) _currentView = nullptr;
+        delete _dataSettingsView;
+    }
+    _previousView = _currentView;
+    _dataSettingsView = new DataSettingsView(_tft, this);
+    setView(_dataSettingsView);
 }
 
 LGFX *DisplayManager::tft() const { return _tft; }

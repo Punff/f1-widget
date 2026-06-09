@@ -6,6 +6,7 @@ struct SettingsData {
     uint32_t magic;
     uint8_t brightness;
     int8_t utcOffset;
+    uint16_t displayTimeoutSec; // 0=Never, 30, 60, 120, 300
     char favTeamId[32];
 };
 
@@ -33,8 +34,9 @@ private:
         SET_BRIGHTNESS = 0,
         SET_UTC_OFFSET,
         SET_FAV_TEAM,
-        SET_SYSINFO,
-        SET_CLEAR_CACHE,
+        SET_DISPLAY_TIMEOUT,
+        SET_WIFI,
+        SET_DATA,
         SET_ABOUT,
         SET_COUNT
     };

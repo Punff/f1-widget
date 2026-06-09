@@ -81,7 +81,6 @@ struct NewsArticle
 struct RaceMeeting
 {
     int round;
-    int meetingKey;
     char officialName[96];
     char date[12];
     Circuit circuit;
@@ -101,7 +100,6 @@ public:
     std::vector<NewsArticle> newsFeed;
 
     int currentSeason = 2026;
-    uint32_t lastUpdated = 0;
 
     DataCache();
 

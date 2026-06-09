@@ -83,20 +83,7 @@ void WeekendView::drawHeader()
 
 static const char *sessionAbbrev(const char *name)
 {
-    if (strcmp(name, "Practice 1") == 0)
-        return "Free Practice 1";
-    if (strcmp(name, "Practice 2") == 0)
-        return "Free Practice 2";
-    if (strcmp(name, "Practice 3") == 0)
-        return "Free Practice 3";
-    if (strcmp(name, "Qualifying") == 0)
-        return "Qualifying";
-    if (strcmp(name, "Sprint") == 0)
-        return "Sprint";
-    if (strcmp(name, "Sprint Qualifying") == 0)
-        return "Sprint Qualifying";
-    if (strcmp(name, "Race") == 0)
-        return "Race";
+    (void)name;
     return name;
 }
 

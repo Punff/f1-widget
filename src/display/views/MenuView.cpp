@@ -93,7 +93,7 @@ void MenuView::onPress()
 {
     if (static_cast<MenuItem>(_cursor) == MenuItem::CURRENT_WEEKEND)
     {
-        if (!timeMgr || !timeMgr->isSynced() || !cache || cache->calendar.empty())
+        if (!timeMgr || !cache || cache->calendar.empty())
             return;
 
         time_t nowLocal = timeMgr->getLocalTime();

@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include "UI.h"
 
 class LGFX;
 
@@ -9,7 +10,7 @@ public:
 
     void setWifiConnected(bool on);
     void draw();
-    void drawCenter(const char *text, uint32_t color = 0x777777);
+    void drawCenter(const char *text, uint32_t color = UI::COL_MUTED);
     void redrawWifi();
     void markDirty() { _dirty = true; }
 

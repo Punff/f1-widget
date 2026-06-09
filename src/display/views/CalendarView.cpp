@@ -79,7 +79,7 @@ void CalendarView::onEnter()
         }
     }
 
-    // Cursor: live weekend first, else next, else last
+    // Cursor: live weekend first, else next, else last event (offseason)
     _cursor = 0;
     for (int i = 0; i < (int)_status.size(); i++) {
         if (_status[i] == ST_LIVE) { _cursor = i; break; }
@@ -88,6 +88,9 @@ void CalendarView::onEnter()
         for (int i = 0; i < (int)_status.size(); i++) {
             if (_status[i] == ST_NEXT) { _cursor = i; break; }
         }
+    }
+    if (_cursor == 0 && !_status.empty()) {
+        _cursor = _status.size() - 1;
     }
 
     ScrollListView::onEnter();

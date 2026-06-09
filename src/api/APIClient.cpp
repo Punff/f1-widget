@@ -1,4 +1,5 @@
 #include "APIClient.h"
+#include "../display/views/UI.h"
 #include <algorithm>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -57,6 +58,7 @@ bool APIClient::syncDriversAndStandings()
         client.setInsecure();
         HTTPClient http;
         http.begin(client, "https://api.jolpi.ca/ergast/f1/" + season + "/driverstandings.json");
+        http.setTimeout(10000);
         if (http.GET() == HTTP_CODE_OK)
             standingJson = http.getString();
     }
@@ -69,6 +71,7 @@ bool APIClient::syncDriversAndStandings()
         client.setInsecure();
         HTTPClient http;
         http.begin(client, "https://api.openf1.org/v1/drivers?session_key=latest");
+        http.setTimeout(10000);
         if (http.GET() == HTTP_CODE_OK)
             driverJson = http.getString();
     }
@@ -172,7 +175,7 @@ bool APIClient::syncDriversAndStandings()
                         ds.driver.team.teamColor = ofi->teamColor;
                         ds.driver.number = ofi->number;
                     } else {
-                        ds.driver.team.teamColor = 0x7BEF;
+                        ds.driver.team.teamColor = UI::COL_TEAM_GREY;
                     }
 
                     _cache->driverStandings.push_back(ds);
@@ -312,6 +315,7 @@ bool APIClient::syncConstructors()
         client.setInsecure();
         HTTPClient http;
         http.begin(client, "https://api.jolpi.ca/ergast/f1/" + season + "/constructorstandings.json");
+        http.setTimeout(10000);
         if (http.GET() != HTTP_CODE_OK) return false;
         json = http.getString();
     }
@@ -334,7 +338,7 @@ bool APIClient::syncConstructors()
         strlcpy(cs.team.id, s["Constructor"]["constructorId"] | "", sizeof(cs.team.id));
 
         // Match by constructor ID (case-insensitive) against driver team names
-        cs.team.teamColor = 0x4208;
+        cs.team.teamColor = UI::COL_TEAM_GREY;
         {
             char idPat[32];
             strlcpy(idPat, cs.team.id, sizeof(idPat));
@@ -397,6 +401,7 @@ bool APIClient::fetchSessionResults(int round, const char *sessionType, std::vec
         client.setInsecure();
         HTTPClient http;
         http.begin(client, url);
+        http.setTimeout(10000);
         int httpCode = http.GET();
         if (httpCode != HTTP_CODE_OK) {
             Serial.printf("[FETCH] HTTP failed: %d\n", httpCode);
@@ -479,6 +484,7 @@ bool APIClient::syncCalendar()
         client.setInsecure();
         HTTPClient http;
         http.begin(client, "https://api.jolpi.ca/ergast/f1/" + season + ".json");
+        http.setTimeout(10000);
         if (http.GET() != HTTP_CODE_OK) return false;
         raceJson = http.getString();
     }
@@ -504,7 +510,6 @@ bool APIClient::syncCalendar()
         strlcpy(rm.circuit.shortName, r["Circuit"]["circuitName"] | "", sizeof(rm.circuit.shortName));
         strlcpy(rm.circuit.location, r["Circuit"]["Location"]["locality"] | "", sizeof(rm.circuit.location));
         strlcpy(rm.circuit.countryName, r["Circuit"]["Location"]["country"] | "", sizeof(rm.circuit.countryName));
-        rm.meetingKey = 0;
 
         // Parse embedded sessions from Jolpica
         rm.sessionCount = 0;
@@ -680,27 +685,35 @@ bool APIClient::fetchNewsFeed()
     Serial.println("[RSS] Fetching motorsport.com news...");
     _cache->newsFeed.clear();
 
+    // Use getString() which is battle-tested. Memory is freed when body goes out of scope.
+    // Retry once on failure to handle transient network issues.
     String body;
+    for (int attempt = 0; attempt < 2; attempt++)
     {
+        if (attempt > 0) delay(1000);
+
         WiFiClientSecure wcs;
         wcs.setInsecure();
         HTTPClient http;
         http.begin(wcs, "https://www.motorsport.com/rss/f1/news/");
+        http.setTimeout(10000);
         http.addHeader("User-Agent", "Mozilla/5.0 (compatible; F1Widget/1.0)");
         int code = http.GET();
-        if (code != HTTP_CODE_OK)
+        if (code == HTTP_CODE_OK)
         {
-            Serial.printf("[RSS] HTTP failed: %d\n", code);
-            return false;
+            body = http.getString();
+            http.end();
+            break;
         }
-        body = http.getString();
-        Serial.printf("[RSS] Downloaded %d bytes\n", body.length());
+        http.end();
+        Serial.printf("[RSS] Attempt %d: HTTP %d\n", attempt + 1, code);
     }
 
     if (body.length() < 100) {
         Serial.printf("[RSS] Body too short: %d bytes\n", body.length());
         return false;
     }
+    Serial.printf("[RSS] Downloaded %d bytes\n", body.length());
 
     const char *p = body.c_str();
     int count = 0;

@@ -72,6 +72,9 @@ namespace UI
     // Shared sprite max row height — all views use same sprite to prevent heap fragmentation
     static constexpr int MAX_ROW_H = 50;
 
+    // Fallback grey (RGB565) for missing team colors
+    static constexpr uint16_t COL_TEAM_GREY = 0x7BEF;
+
     // Encoder visual feedback
     static constexpr int ENCODER_PULSE_MS = 30;
 }

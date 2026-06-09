@@ -66,7 +66,6 @@ void setup()
     // Backlight PWM init (5000Hz, 8-bit, fully on)
     ledcSetup(0, 5000, 8);
     ledcAttachPin(27, 0);
-    ledcWrite(0, 255);
 
     if (!LittleFS.begin(true)) {
         Serial.println("[ERROR] LittleFS Failed");
@@ -80,42 +79,18 @@ void setup()
     cache->begin();
 
     dm = new DisplayManager(&tft);
+    dm->setUserBrightness(bootSettings.brightness);
+    dm->setDisplayTimeout(bootSettings.displayTimeoutSec);
     dm->drawSplash();
-    dm->drawBootStatus("Initializing...");
 
     api = new APIClient(cache);
 
-    // Check for saved WiFi credentials via ESP32 WiFi config
-    {
-        WiFi.mode(WIFI_STA);
-        wifi_config_t _conf;
-        esp_wifi_get_config(WIFI_IF_STA, &_conf);
-        bool hasCreds = strlen((const char *)_conf.sta.ssid) > 0;
-        if (!hasCreds) {
-            dm->drawWiFiInstructions();
-        }
-    }
-
+    // Try WiFi from saved networks (non-blocking with 10s timeout per AP)
     dm->drawBootStatus("Connecting to WiFi...");
-    if (wifi_init())
+    bool wifiConnected = wifi_connect_best();
+
+    if (wifiConnected)
     {
-        dm->drawBootStatus("Syncing driver standings...");
-        api->syncDriversAndStandings();
-
-        dm->drawBootStatus("Syncing constructors...");
-        api->syncConstructors();
-
-        dm->drawBootStatus("Syncing calendar...");
-        api->syncCalendar();
-
-        // Compact vectors and persist to flash
-        cache->driverStandings.shrink_to_fit();
-        cache->constructorStandings.shrink_to_fit();
-        cache->calendar.shrink_to_fit();
-        cache->save();
-        
-        SettingsView::applyFavTeamColor(bootSettings);
-
         dm->drawBootStatus("Setting clock...");
         timeMgr = new TimeManager();
         timeMgr->setUTCOffset(bootSettings.utcOffset);
@@ -132,10 +107,11 @@ void setup()
     else
     {
         dm->drawBootStatus("Offline mode");
-        SettingsView::applyFavTeamColor(bootSettings);
         timeMgr = new TimeManager();
         timeMgr->setUTCOffset(bootSettings.utcOffset);
     }
+
+    SettingsView::applyFavTeamColor(bootSettings);
 
     dm->drawBootStatus("Starting menu...");
     menuView = new MenuView(&tft, dm);
