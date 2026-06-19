@@ -39,6 +39,9 @@ bool APIClient::syncAll()
     _cache->calendar.shrink_to_fit();
     _cache->save();
 
+    // Background cache circuits for all completed rounds
+    syncCircuits();
+
     if (ok)
         Serial.println("[SYNC] All syncs successful!");
     else
@@ -748,4 +751,579 @@ bool APIClient::fetchNewsFeed()
     return count > 0;
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Circuit Outline + Lap Data Sync
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── Cache path helpers ───────────────────────────────────────────────
+
+static void _lapCachePath(int round, char *path, size_t sz)
+{
+    snprintf(path, sz, "/circuits/lap_R%02d.bin", round);
+    for (char *p = path; *p; p++) { if (*p == '/') *p = '_'; }
+}
+
+static void _outlineCachePath(const char *shortName, char *path, size_t sz)
+{
+    snprintf(path, sz, "/circuits/%s.bin", shortName);
+    for (char *p = path; *p; p++) {
+        if (*p == '/') *p = '_';
+        if (*p == ' ') *p = '_';
+    }
+}
+
+static bool _hasCachedLap(int round)
+{
+    char path[32];
+    _lapCachePath(round, path, sizeof(path));
+    return LittleFS.exists(path);
+}
+
+static bool _hasCachedOutline(const char *shortName)
+{
+    char path[64];
+    _outlineCachePath(shortName, path, sizeof(path));
+    return LittleFS.exists(path);
+}
+
+// ── Lap cache binary I/O ─────────────────────────────────────────────
+
+static void _saveLapCache(int round, const CachedLapData &data)
+{
+    char path[32];
+    _lapCachePath(round, path, sizeof(path));
+    File f = LittleFS.open(path, FILE_WRITE);
+    if (!f) return;
+    uint16_t magic = 0xC19A;
+    f.write((uint8_t *)&magic, 2);
+    f.write((uint8_t *)&data, sizeof(CachedLapData));
+    f.close();
+}
+
+// ── Circuit outline binary I/O ───────────────────────────────────────
+
+static void _saveCircuitCache(const char *shortName, const std::vector<CircuitPoint> &pts)
+{
+    char fname[64];
+    _outlineCachePath(shortName, fname, sizeof(fname));
+    File f = LittleFS.open(fname, FILE_WRITE);
+    if (!f) return;
+    uint16_t magic = 0xC199;
+    uint16_t count = pts.size();
+    f.write((uint8_t *)&magic, 2);
+    f.write((uint8_t *)&count, 2);
+    f.write((uint8_t *)pts.data(), count * sizeof(CircuitPoint));
+    f.close();
+    Serial.printf("[CIR] Cached %s: %d pts\n", fname, count);
+}
+
+// ── Session-level lap data probe (one cheap call) ────────────────────
+// Returns: 1=has data, 0=empty, -1=404/error
+
+static int _probeLapData(int sessionKey)
+{
+    WiFiClientSecure wcs;
+    wcs.setInsecure();
+    HTTPClient http;
+    http.begin(wcs, "https://api.openf1.org/v1/laps?session_key=" + String(sessionKey) + "&lap_number=1");
+    http.setTimeout(8000);
+    int code = http.GET();
+    if (code != HTTP_CODE_OK) { http.end(); return -1; }
+    String body = http.getString();
+    http.end();
+    body.trim();
+    return (body == "[]" || body.length() < 5) ? 0 : 1;
+}
+
+// ── Stream-parse fastest lap for one driver ──────────────────────────
+// Avoids loading 37KB into RAM by reading the stream and tracking the
+// best lap_duration seen, capturing only the fields we need.
+
+static bool _fetchFastestLapStream(int sessionKey, int driverNumber,
+    float &lapTime, float &s1, float &s2, float &s3,
+    int &speedTrap, int &i1Speed, int &i2Speed, int &lapNumber,
+    char *lapDateStart, size_t dateBufSize)
+{
+    WiFiClientSecure wcs;
+    wcs.setInsecure();
+    HTTPClient http;
+    String url = "https://api.openf1.org/v1/laps?session_key=" + String(sessionKey)
+               + "&driver_number=" + String(driverNumber);
+    http.begin(wcs, url);
+    http.setTimeout(15000);
+    int code = http.GET();
+    if (code != HTTP_CODE_OK) { http.end(); return false; }
+
+    WiFiClient *stream = http.getStreamPtr();
+    if (!stream) { http.end(); return false; }
+
+    // Fields we track per lap object
+    float cur_dur = 0, cur_s1 = 0, cur_s2 = 0, cur_s3 = 0;
+    int   cur_st = 0, cur_i1 = 0, cur_i2 = 0, cur_ln = 0;
+    bool  cur_pitout = false;
+    char  cur_date[48] = "";
+
+    // Best lap so far
+    float best = 1e9f;
+    bool  found = false;
+    lapTime = 1e9f;
+
+    char  buf[64];
+    int   bi = 0;
+    char  curKey[32] = "";
+    enum  { LOOK_KEY, READ_KEY, SKIP_VAL, READ_STR_VAL, READ_NUM_VAL } st = LOOK_KEY;
+    int   depth = 0; // bracket/brace nesting
+
+    unsigned long timeout = millis() + 18000;
+    while (stream->connected() && millis() < timeout) {
+        while (stream->available() && millis() < timeout) {
+            char c = stream->read();
+
+            if (c == '[') { depth++; continue; }
+            if (c == ']') { depth--; continue; }
+
+            if (c == '{') {
+                // New lap object
+                cur_dur = cur_s1 = cur_s2 = cur_s3 = 0;
+                cur_st = cur_i1 = cur_i2 = cur_ln = 0;
+                cur_pitout = false; cur_date[0] = '\0';
+                st = LOOK_KEY; bi = 0;
+                continue;
+            }
+            if (c == '}') {
+                // Lap object ended — check if it's the best non-pit lap
+                if (cur_dur > 0 && !cur_pitout && cur_dur < best) {
+                    best = cur_dur;
+                    lapTime  = cur_dur; s1 = cur_s1; s2 = cur_s2; s3 = cur_s3;
+                    speedTrap = cur_st; i1Speed = cur_i1; i2Speed = cur_i2;
+                    lapNumber = cur_ln;
+                    if (lapDateStart && dateBufSize > 0)
+                        strlcpy(lapDateStart, cur_date, dateBufSize);
+                    found = true;
+                }
+                st = LOOK_KEY; bi = 0;
+                continue;
+            }
+
+            switch (st) {
+            case LOOK_KEY:
+                if (c == '"') { bi = 0; st = READ_KEY; }
+                break;
+            case READ_KEY:
+                if (c == '"') {
+                    buf[bi] = '\0';
+                    strlcpy(curKey, buf, sizeof(curKey));
+                    // Decide how to handle value
+                    bool isStr = (strcmp(curKey,"date_start")==0);
+                    bool isNum = (strcmp(curKey,"lap_duration")==0 ||
+                                  strcmp(curKey,"duration_sector_1")==0 ||
+                                  strcmp(curKey,"duration_sector_2")==0 ||
+                                  strcmp(curKey,"duration_sector_3")==0 ||
+                                  strcmp(curKey,"st_speed")==0 ||
+                                  strcmp(curKey,"i1_speed")==0 ||
+                                  strcmp(curKey,"i2_speed")==0 ||
+                                  strcmp(curKey,"lap_number")==0 ||
+                                  strcmp(curKey,"is_pit_out_lap")==0);
+                    st = isStr ? READ_STR_VAL : (isNum ? READ_NUM_VAL : SKIP_VAL);
+                    bi = 0;
+                } else if (bi < (int)sizeof(buf)-1) buf[bi++] = c;
+                break;
+            case SKIP_VAL:
+                // Skip until next comma or closing brace at same depth
+                if (c == ',' || c == '}') {
+                    if (c == '}') {
+                        // re-process the closing brace
+                        if (cur_dur > 0 && !cur_pitout && cur_dur < best) {
+                            best = cur_dur;
+                            lapTime  = cur_dur; s1 = cur_s1; s2 = cur_s2; s3 = cur_s3;
+                            speedTrap = cur_st; i1Speed = cur_i1; i2Speed = cur_i2;
+                            lapNumber = cur_ln;
+                            if (lapDateStart && dateBufSize > 0)
+                                strlcpy(lapDateStart, cur_date, dateBufSize);
+                            found = true;
+                        }
+                        st = LOOK_KEY;
+                    } else {
+                        st = LOOK_KEY;
+                    }
+                } else if (c == '[') {
+                    // Skip arrays (segments_sector_*)
+                    int arr = 1;
+                    unsigned long at = millis() + 3000;
+                    while (arr > 0 && stream->connected() && millis() < at) {
+                        if (!stream->available()) { delay(1); continue; }
+                        char ac = stream->read();
+                        if (ac == '[') arr++;
+                        else if (ac == ']') arr--;
+                    }
+                    st = LOOK_KEY;
+                }
+                break;
+            case READ_STR_VAL: {
+                // Find opening quote, read until closing quote
+                if (c == ':' || c == ' ') break;
+                if (c == '"') {
+                    bi = 0;
+                    unsigned long t2 = millis() + 2000;
+                    while (millis() < t2) {
+                        if (!stream->available()) { delay(1); continue; }
+                        char c2 = stream->read();
+                        if (c2 == '"') break;
+                        if (bi < (int)sizeof(buf)-1) buf[bi++] = c2;
+                    }
+                    buf[bi] = '\0';
+                    if (strcmp(curKey,"date_start")==0) {
+                        // Trim subseconds/timezone, keep YYYY-MM-DDTHH:MM:SS
+                        char *dot = strchr(buf, '.');
+                        if (dot) *dot = '\0';
+                        strlcpy(cur_date, buf, sizeof(cur_date));
+                    }
+                    st = LOOK_KEY;
+                }
+                break;
+            }
+            case READ_NUM_VAL: {
+                if (c == ':' || c == ' ') break;
+                bi = 0; buf[bi++] = c;
+                unsigned long t2 = millis() + 2000;
+                while (millis() < t2) {
+                    if (!stream->available()) { delay(1); continue; }
+                    char c2 = stream->peek();
+                    if (c2==',' || c2=='}' || c2==']' || c2==' ' || c2=='\n') break;
+                    stream->read();
+                    if (bi < (int)sizeof(buf)-1) buf[bi++] = c2;
+                }
+                buf[bi] = '\0';
+                float fv = atof(buf); int iv = atoi(buf);
+                if      (strcmp(curKey,"lap_duration")==0)       cur_dur = fv;
+                else if (strcmp(curKey,"duration_sector_1")==0)  cur_s1  = fv;
+                else if (strcmp(curKey,"duration_sector_2")==0)  cur_s2  = fv;
+                else if (strcmp(curKey,"duration_sector_3")==0)  cur_s3  = fv;
+                else if (strcmp(curKey,"st_speed")==0)           cur_st  = iv;
+                else if (strcmp(curKey,"i1_speed")==0)           cur_i1  = iv;
+                else if (strcmp(curKey,"i2_speed")==0)           cur_i2  = iv;
+                else if (strcmp(curKey,"lap_number")==0)         cur_ln  = iv;
+                else if (strcmp(curKey,"is_pit_out_lap")==0)     cur_pitout = (iv != 0 || buf[0]=='t');
+                st = LOOK_KEY;
+                break;
+            }
+            }
+        }
+        if (!stream->available()) delay(2);
+    }
+    http.end();
+    return found;
+}
+
+// ── Session result (finishing position, gap, laps) ───────────────────
+
+static bool _fetchSessionResult(int sessionKey, int driverNumber,
+    int &position, float &gapToLeader, int &numLaps)
+{
+    WiFiClientSecure wcs;
+    wcs.setInsecure();
+    HTTPClient http;
+    String url = "https://api.openf1.org/v1/session_result?session_key=" + String(sessionKey)
+               + "&driver_number=" + String(driverNumber);
+    http.begin(wcs, url);
+    http.setTimeout(8000);
+    int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+        Serial.printf("[CIR] session_result query failed: %d\n", code);
+        http.end(); return false;
+    }
+    String body = http.getString();
+    http.end();
+
+    JsonDocument doc;
+    if (deserializeJson(doc, body) || !doc.is<JsonArray>()) return false;
+    JsonArray arr = doc.as<JsonArray>();
+    if (arr.size() == 0) return false;
+
+    JsonVariant r = arr[0];
+    position = r["position"].as<int>();
+    const char *gap = r["gap_to_leader"].as<const char *>();
+    if (gap) {
+        if (strstr(gap, "LAP") || strstr(gap, "lap")) gapToLeader = -1.0f;
+        else gapToLeader = atof(gap + (gap[0] == '+' ? 1 : 0));
+    }
+    numLaps = r["number_of_laps"].as<int>();
+    return true;
+}
+
+// ── Circuit outline stream fetch ──────────────────────────────────────
+
+bool APIClient::fetchCircuitOutline(int sessionKey, int driverNumber,
+    std::vector<CircuitPoint> &points, int maxPoints, const char *dateAfter)
+{
+    points.clear();
+    WiFiClientSecure wcs;
+    wcs.setInsecure();
+    HTTPClient http;
+
+    String url = "https://api.openf1.org/v1/location?session_key=" + String(sessionKey)
+               + "&driver_number=" + String(driverNumber);
+    if (dateAfter) { url += "&date>="; url += dateAfter; }
+
+    Serial.printf("[CIR] Fetching location: session_key=%d driver_number=%d%s\n",
+        sessionKey, driverNumber, dateAfter ? " (date filtered)" : "");
+    http.begin(wcs, url);
+    http.setTimeout(15000);
+    http.addHeader("Accept", "application/json");
+    int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+        Serial.printf("[CIR] location query failed: %d url=%s\n", code, url.c_str());
+        http.end(); return false;
+    }
+
+    WiFiClient *stream = http.getStreamPtr();
+    if (!stream) { http.end(); return false; }
+
+    struct RawPt { float x, y; };
+    std::vector<RawPt> raw;
+    raw.reserve(500);
+
+    char buf[32]; int bi = 0;
+    enum { LOOK_KEY, READ_KEY, SKIP_VAL, READ_VAL_X, READ_VAL_Y } state = LOOK_KEY;
+    float tmpX = 0, tmpY = 0;
+    bool hasX = false, hasY = false;
+    int totalParsed = 0;
+
+    unsigned long timeout = millis() + 20000;
+    while (stream->connected() && raw.size() < 600 && totalParsed < 50000 && millis() < timeout) {
+        while (stream->available() && raw.size() < 600 && totalParsed < 50000) {
+            int c = stream->read();
+            if (c < 0) break;
+            switch (state) {
+            case LOOK_KEY:
+                if (c == '"') { bi = 0; state = READ_KEY; }
+                break;
+            case READ_KEY:
+                if (c == '"') {
+                    buf[bi] = '\0';
+                    if      (strcmp(buf,"x")==0) { state = READ_VAL_X; bi = 0; }
+                    else if (strcmp(buf,"y")==0) { state = READ_VAL_Y; bi = 0; }
+                    else                          state = SKIP_VAL;
+                } else if (bi < (int)sizeof(buf)-1) buf[bi++] = c;
+                break;
+            case SKIP_VAL:
+                if (c == '}') { state = LOOK_KEY; totalParsed++; }
+                else if (c == ',') state = LOOK_KEY;
+                break;
+            case READ_VAL_X:
+                if (c == ':') break;
+                if (c == ',' || c == '}' || c == ']') {
+                    buf[bi] = '\0'; tmpX = atof(buf); hasX = true; bi = 0;
+                    state = LOOK_KEY;
+                    if (hasY) {
+                        if (tmpX != 0 || tmpY != 0) raw.push_back({tmpX, tmpY});
+                        hasX = hasY = false;
+                    }
+                } else if (bi < (int)sizeof(buf)-1) buf[bi++] = c;
+                break;
+            case READ_VAL_Y:
+                if (c == ':') break;
+                if (c == ',' || c == '}' || c == ']') {
+                    buf[bi] = '\0'; tmpY = atof(buf); hasY = true; bi = 0;
+                    state = LOOK_KEY;
+                    if (hasX) {
+                        if (tmpX != 0 || tmpY != 0) raw.push_back({tmpX, tmpY});
+                        hasX = hasY = false;
+                    }
+                } else if (bi < (int)sizeof(buf)-1) buf[bi++] = c;
+                break;
+            }
+        }
+        if (!stream->available()) delay(2);
+    }
+    http.end();
+
+    int rawCount = raw.size();
+    if (rawCount < 2) {
+        Serial.printf("[CIR] Not enough location points: %d\n", rawCount);
+        return false;
+    }
+
+    int step = (rawCount > maxPoints) ? (rawCount / maxPoints) : 1;
+    points.push_back({(int16_t)raw[0].x, (int16_t)raw[0].y});
+    for (int i = step; i < rawCount - 1; i += step)
+        points.push_back({(int16_t)raw[i].x, (int16_t)raw[i].y});
+    if (rawCount > 1) {
+        CircuitPoint lp = {(int16_t)raw.back().x, (int16_t)raw.back().y};
+        if (lp.x != points.back().x || lp.y != points.back().y)
+            points.push_back(lp);
+    }
+
+    Serial.printf("[CIR] Outline first=(%d,%d) last=(%d,%d)\n",
+        points[0].x, points[0].y,
+        points[points.size()-1].x, points[points.size()-1].y);
+    Serial.printf("[CIR] Circuit outline: %d points (from %d raw)\n", points.size(), rawCount);
+    return !points.empty();
+}
+
+// ── Ordered driver candidate list (fav first, then standings order) ──
+
+static int _buildDriverList(const DataCache *cache, int *out, int maxOut)
+{
+    int n = 0;
+    // Championship order — P1 first (most likely to have complete data)
+    for (auto &ds : cache->driverStandings) {
+        if (n >= maxOut) break;
+        out[n++] = ds.driver.number;
+    }
+    if (n == 0) { out[0] = 1; n = 1; }
+    return n;
+}
+
+// ── Past-race guard ───────────────────────────────────────────────────
+
+static bool _isRacePassed(const char *dateStr, time_t now)
+{
+    struct tm t = {0};
+    if (sscanf(dateStr, "%d-%d-%d", &t.tm_year, &t.tm_mon, &t.tm_mday) < 3) return false;
+    t.tm_year -= 1900; t.tm_mon -= 1;
+    // 2-day buffer — OpenF1 publishes historical data a day or two after the race
+    return (mktime(&t) + 2 * 86400) < now;
+}
+
+// ── Cache one round ───────────────────────────────────────────────────
+
+bool APIClient::_cacheOneRound(int round, const RaceMeeting *rm)
+{
+    Serial.printf("[CIR] Caching round %d (%s)...\n", round, rm->circuit.shortName);
+
+    if (!rm->meetingKey) {
+        Serial.printf("[CIR] R%02d: no meeting_key (run Sync Data first)\n", round);
+        return false;
+    }
+
+    // Resolve Race session_key from /v1/sessions?meeting_key=X (~2KB)
+    int sessionKey = 0;
+    {
+        WiFiClientSecure wcs; wcs.setInsecure();
+        HTTPClient http;
+        http.begin(wcs, "https://api.openf1.org/v1/sessions?meeting_key=" + String(rm->meetingKey));
+        http.setTimeout(8000);
+        if (http.GET() == HTTP_CODE_OK) {
+            String body = http.getString(); http.end();
+            JsonDocument sdoc;
+            if (!deserializeJson(sdoc, body) && sdoc.is<JsonArray>()) {
+                int qualKey = 0;
+                for (JsonVariant s : sdoc.as<JsonArray>()) {
+                    const char *sname = s["session_name"].as<const char *>();
+                    int sk = s["session_key"].as<int>();
+                    if (!sname || !sk) continue;
+                    if (strcasecmp(sname, "Race") == 0) { sessionKey = sk; break; }
+                    if (strcasecmp(sname, "Qualifying") == 0) qualKey = sk;
+                }
+                if (!sessionKey) sessionKey = qualKey;
+            }
+        } else { http.end(); }
+    }
+    if (!sessionKey) {
+        Serial.printf("[CIR] R%02d: could not resolve session_key from meeting %d\n", round, rm->meetingKey);
+        return false;
+    }
+    Serial.printf("[CIR] R%02d: meeting_key=%d session_key=%d\n", round, rm->meetingKey, sessionKey);
+
+    // Probe: does this session have any lap data at all?
+    int probe = _probeLapData(sessionKey);
+    if (probe <= 0) {
+        Serial.printf("[CIR] R%02d: no lap data yet (probe=%d), skipping\n", round, probe);
+        // Still try outline — GPS data can exist before lap times are published
+    }
+
+    // Build ordered driver list (fav first, then championship order)
+    int drivers[22];
+    int numDrivers = _buildDriverList(_cache, drivers, 22);
+
+    // ── Lap data ─────────────────────────────────────────────────────
+    CachedLapData ld;
+    memset(&ld, 0, sizeof(ld));
+
+    if (probe > 0) {
+        for (int i = 0; i < numDrivers && !ld.valid; i++) {
+            int dn = drivers[i];
+            float lt=0,s1=0,s2=0,s3=0; int st=0,i1=0,i2=0,ln=0;
+            char dateBuf[48] = "";
+            if (_fetchFastestLapStream(sessionKey, dn, lt, s1, s2, s3, st, i1, i2, ln, dateBuf, sizeof(dateBuf))) {
+                ld.valid = true;
+                ld.lapTime=lt; ld.s1=s1; ld.s2=s2; ld.s3=s3;
+                ld.speedTrap=st; ld.i1Speed=i1; ld.i2Speed=i2; ld.lapNumber=ln;
+                strlcpy(ld.lapDateStart, dateBuf, sizeof(ld.lapDateStart));
+                int pos=0; float gap=0; int laps=0;
+                if (_fetchSessionResult(sessionKey, dn, pos, gap, laps)) {
+                    ld.position=(uint16_t)pos; ld.gapToLeader=gap; ld.numLaps=(uint16_t)laps;
+                }
+                Serial.printf("[CIR] R%02d lap data: driver=%d lap=%d time=%.3f\n", round, dn, ln, lt);
+            }
+        }
+        if (!ld.valid)
+            Serial.printf("[CIR] R%02d: no lap data from any driver\n", round);
+    }
+
+    // Only persist if valid — invalid rounds retry on next sync
+    if (ld.valid) _saveLapCache(round, ld);
+
+    // ── Circuit outline ───────────────────────────────────────────────
+    if (_hasCachedOutline(rm->circuit.shortName)) {
+        Serial.printf("[CIR] R%02d outline already cached\n", round);
+        return ld.valid;
+    }
+
+    std::vector<CircuitPoint> rawPoints;
+    bool outlineOk = false;
+    const char *dateFilter = ld.lapDateStart[0] ? ld.lapDateStart : nullptr;
+
+    if (dateFilter) {
+        // Try fav driver with date filter first
+        outlineOk = fetchCircuitOutline(sessionKey, drivers[0], rawPoints, 350, dateFilter);
+        // If date filter fails immediately drop it — the filter is session-wide, not per-driver
+        if (!outlineOk) {
+            Serial.println("[CIR] Date filter failed, retrying without filter...");
+            dateFilter = nullptr;
+        }
+    }
+
+    if (!outlineOk) {
+        // Try top-4 drivers without date filter
+        int lim = (numDrivers < 4) ? numDrivers : 4;
+        for (int i = 0; i < lim && !outlineOk; i++)
+            outlineOk = fetchCircuitOutline(sessionKey, drivers[i], rawPoints, 350, nullptr);
+    }
+
+    if (outlineOk) _saveCircuitCache(rm->circuit.shortName, rawPoints);
+    else Serial.printf("[CIR] R%02d: could not fetch circuit outline\n", round);
+
+    return ld.valid || outlineOk;
+}
+
+// ── Background Circuit Sync ───────────────────────────────────────────
+
+bool APIClient::syncCircuits()
+{
+    if (!_cache || _cache->calendar.empty()) return false;
+
+    time_t now = time(nullptr);
+    int synced = 0, skipped = 0, notReady = 0;
+
+    for (auto &rm : _cache->calendar) {
+        if (!_isRacePassed(rm.date, now)) continue;
+
+        bool haveLap     = _hasCachedLap(rm.round);
+        bool haveOutline = _hasCachedOutline(rm.circuit.shortName);
+
+        if (haveLap && haveOutline) { skipped++; continue; }
+
+        Serial.printf("[CIR] Round %d: lap=%s outline=%s — fetching\n",
+            rm.round, haveLap ? "OK" : "missing", haveOutline ? "OK" : "missing");
+
+        if (_cacheOneRound(rm.round, &rm)) synced++;
+        else notReady++;
+    }
+
+    Serial.printf("[CIR] Circuit sync done: %d cached, %d skipped (complete), %d not ready\n",
+        synced, skipped, notReady);
+    return true;
+}
 

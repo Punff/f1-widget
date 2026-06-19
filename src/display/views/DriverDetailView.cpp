@@ -12,9 +12,9 @@ static const char *monthName(int m)
 {
     static const char *names[12] = {
         "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-    };
-    if (m < 1 || m > 12) return "?";
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+    if (m < 1 || m > 12)
+        return "?";
     return names[m - 1];
 }
 
@@ -35,12 +35,20 @@ void DriverDetailView::render()
 
 void DriverDetailView::onTurnLeft()
 {
-    if (_driverIdx > 0) { _driverIdx--; drawCard(); }
+    if (_driverIdx > 0)
+    {
+        _driverIdx--;
+        drawCard();
+    }
 }
 
 void DriverDetailView::onTurnRight()
 {
-    if (_driverIdx < (int)cache->driverStandings.size() - 1) { _driverIdx++; drawCard(); }
+    if (_driverIdx < (int)cache->driverStandings.size() - 1)
+    {
+        _driverIdx++;
+        drawCard();
+    }
 }
 
 void DriverDetailView::onLongPress()
@@ -51,7 +59,11 @@ void DriverDetailView::onLongPress()
 // Format "1997-09-30" → "30 Sep 1997", extracts year
 static int parseDOB(const char *iso, char *out, size_t outSize)
 {
-    if (!iso || !iso[0]) { out[0] = 0; return 0; }
+    if (!iso || !iso[0])
+    {
+        out[0] = 0;
+        return 0;
+    }
     int y = 0, m = 0, d = 0;
     if (sscanf(iso, "%d-%d-%d", &y, &m, &d) >= 3)
         snprintf(out, outSize, "%d %s %d", d, monthName(m), y);
@@ -110,7 +122,8 @@ void DriverDetailView::drawCard()
     _tft->setTextColor(team888);
     _tft->setFont(UI::Fonts::BODY_MAIN);
     _tft->drawString(ds.driver.acronym, RIGHT_X, ry);
-    if (ds.driver.nationality[0]) {
+    if (ds.driver.nationality[0])
+    {
         _tft->setTextColor(UI::COL_MUTED);
         char natBuf[48];
         snprintf(natBuf, sizeof(natBuf), "   ·   %s", ds.driver.nationality);
@@ -135,7 +148,7 @@ void DriverDetailView::drawCard()
     // ── Stats ──
     _tft->setFont(UI::Fonts::BODY_MAIN);
     _tft->setTextDatum(top_left);
-    static constexpr int V1 = RIGHT_X;       // col1 label
+    static constexpr int V1 = RIGHT_X;        // col1 label
     static constexpr int VV1 = RIGHT_X + 70;  // col1 value
     static constexpr int V2 = RIGHT_X + 160;  // col2 label
     static constexpr int VV2 = RIGHT_X + 230; // col2 value
@@ -153,7 +166,8 @@ void DriverDetailView::drawCard()
     _tft->setTextColor(UI::COL_MUTED);
     _tft->drawString("Age", V1, ry);
     _tft->setTextColor(UI::COL_TEXT);
-    if (birthYear > 0) {
+    if (birthYear > 0)
+    {
         time_t now = timeMgr->getLocalTime();
         struct tm lt;
         localtime_r(&now, &lt);
@@ -170,15 +184,19 @@ void DriverDetailView::drawCard()
     _tft->setTextColor(UI::COL_TEXT);
     char posBuf[16];
     snprintf(posBuf, sizeof(posBuf), "%d%s", ds.position,
-             ds.position == 1 ? "st" : ds.position == 2 ? "nd" : ds.position == 3 ? "rd" : "th");
+             ds.position == 1 ? "st" : ds.position == 2 ? "nd"
+                                   : ds.position == 3   ? "rd"
+                                                        : "th");
     _tft->drawString(posBuf, VV1, ry);
 
     _tft->setTextColor(UI::COL_MUTED);
     _tft->drawString("Pts", V2, ry);
     _tft->setTextColor(team888);
     char ptsStr[16];
-    if (ds.points == (int)ds.points) snprintf(ptsStr, sizeof(ptsStr), "%d", (int)ds.points);
-    else snprintf(ptsStr, sizeof(ptsStr), "%.1f", ds.points);
+    if (ds.points == (int)ds.points)
+        snprintf(ptsStr, sizeof(ptsStr), "%d", (int)ds.points);
+    else
+        snprintf(ptsStr, sizeof(ptsStr), "%.1f", ds.points);
     _tft->drawString(ptsStr, VV2, ry);
     ry += 24;
 
@@ -188,18 +206,28 @@ void DriverDetailView::drawCard()
     _tft->setTextColor(UI::COL_TEXT);
     _tft->drawNumber(ds.wins, VV1, ry);
 
-    if (cache->driverStandings.size() > 0) {
+    if (cache->driverStandings.size() > 0)
+    {
         float leaderPts = cache->driverStandings[0].points;
         float gap = leaderPts - ds.points;
         _tft->setTextColor(UI::COL_MUTED);
         _tft->drawString("Gap", V2, ry);
         _tft->setTextColor(UI::COL_TEXT_DIM);
-        if (_driverIdx == 0) {
+        if (_driverIdx == 0)
+        {
             _tft->drawString("--", VV2, ry);
-        } else if (gap == (int)gap) {
-            char gb[16]; snprintf(gb, sizeof(gb), "+%d", (int)gap); _tft->drawString(gb, VV2, ry);
-        } else {
-            char gb[16]; snprintf(gb, sizeof(gb), "+%.1f", gap); _tft->drawString(gb, VV2, ry);
+        }
+        else if (gap == (int)gap)
+        {
+            char gb[16];
+            snprintf(gb, sizeof(gb), "+%d", (int)gap);
+            _tft->drawString(gb, VV2, ry);
+        }
+        else
+        {
+            char gb[16];
+            snprintf(gb, sizeof(gb), "+%.1f", gap);
+            _tft->drawString(gb, VV2, ry);
         }
     }
 

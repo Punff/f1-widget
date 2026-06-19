@@ -14,14 +14,14 @@
 // Input timing
 #define LONG_PRESS_MS 600
 #define DOUBLE_PRESS_WINDOW_MS 200
-#define DEBOUNCE_MS 100
+#define DEBOUNCE_MS 200
 
 // WiFi
 #define WIFI_AP_NAME "F1Widget"
 
 // API
 #define OPENF1_API_BASE_URL "https://api.openf1.org/v1"
-#define API_UPDATE_INTERVAL 600000
+#define API_UPDATE_INTERVAL 600000 * 10
 
 // App version
 #define APP_VERSION "v1.1"

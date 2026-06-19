@@ -34,7 +34,7 @@ uint16_t DataCache::hexTo565(const char *hexStr)
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
 
-const uint32_t CACHE_MAGIC = 0xF1CA0007; // Bumped — points changed to float
+const uint32_t CACHE_MAGIC = 0xF1CA000A; // Bumped — RaceMeeting gained meetingKey
 
 void DataCache::save()
 {

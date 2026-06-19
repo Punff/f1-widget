@@ -81,11 +81,29 @@ struct NewsArticle
 struct RaceMeeting
 {
     int round;
+    int meetingKey;       // OpenF1 meeting_key (0 if not resolved)
     char officialName[96];
     char date[12];
     Circuit circuit;
     Session sessions[6];
     int sessionCount;
+};
+
+// Circuit outline point (pixel-space after normalization)
+struct CircuitPoint
+{
+    int16_t x, y;
+};
+
+// Cached best-lap data for one race round
+struct CachedLapData
+{
+    bool     valid;
+    float    lapTime, s1, s2, s3;
+    int16_t  speedTrap, i1Speed, i2Speed;
+    uint16_t lapNumber, position, numLaps;
+    float    gapToLeader;
+    char     lapDateStart[32];
 };
 
 // ── DYNAMIC CACHE CONTROLLER ──────────────────────────────────────────
