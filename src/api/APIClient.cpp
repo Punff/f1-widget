@@ -1,5 +1,6 @@
 #include "APIClient.h"
 #include "../display/views/UI.h"
+#include "../config.h"
 #include <algorithm>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
@@ -60,7 +61,7 @@ bool APIClient::syncDriversAndStandings()
         WiFiClientSecure client;
         client.setInsecure();
         HTTPClient http;
-        http.begin(client, "https://api.jolpi.ca/ergast/f1/" + season + "/driverstandings.json");
+        http.begin(client, String(JOLPICA_API_BASE) + "/" + season + "/driverstandings.json");
         http.setTimeout(10000);
         if (http.GET() == HTTP_CODE_OK)
             standingJson = http.getString();
@@ -73,7 +74,7 @@ bool APIClient::syncDriversAndStandings()
         WiFiClientSecure client;
         client.setInsecure();
         HTTPClient http;
-        http.begin(client, "https://api.openf1.org/v1/drivers?session_key=latest");
+        http.begin(client, String(OPENF1_API_BASE) + "/drivers?session_key=latest");
         http.setTimeout(10000);
         if (http.GET() == HTTP_CODE_OK)
             driverJson = http.getString();
@@ -317,7 +318,7 @@ bool APIClient::syncConstructors()
         WiFiClientSecure client;
         client.setInsecure();
         HTTPClient http;
-        http.begin(client, "https://api.jolpi.ca/ergast/f1/" + season + "/constructorstandings.json");
+        http.begin(client, String(JOLPICA_API_BASE) + "/" + season + "/constructorstandings.json");
         http.setTimeout(10000);
         if (http.GET() != HTTP_CODE_OK) return false;
         json = http.getString();
@@ -395,7 +396,7 @@ bool APIClient::fetchSessionResults(int round, const char *sessionType, std::vec
     else
         return false;
 
-    String url = "https://api.jolpi.ca/ergast/f1/" + season + "/" + String(round) + "/" + endpoint + ".json";
+    String url = String(JOLPICA_API_BASE) + "/" + season + "/" + String(round) + "/" + endpoint + ".json";
     Serial.printf("[FETCH] Session results: %s\n", url.c_str());
 
     String json;
@@ -486,7 +487,7 @@ bool APIClient::syncCalendar()
         WiFiClientSecure client;
         client.setInsecure();
         HTTPClient http;
-        http.begin(client, "https://api.jolpi.ca/ergast/f1/" + season + ".json");
+        http.begin(client, String(JOLPICA_API_BASE) + "/" + season + ".json");
         http.setTimeout(10000);
         if (http.GET() != HTTP_CODE_OK) return false;
         raceJson = http.getString();
@@ -540,6 +541,129 @@ bool APIClient::syncCalendar()
         }
 
         _cache->calendar.push_back(rm);
+    }
+
+    // ── Fetch OpenF1 meeting keys (stream parsed) ──────────────────────────
+    {
+        WiFiClientSecure wcs;
+        wcs.setInsecure();
+        HTTPClient http;
+        http.begin(wcs, String(OPENF1_API_BASE) + "/meetings?year=" + season);
+        http.setTimeout(10000);
+        int code = http.GET();
+        if (code == HTTP_CODE_OK) {
+            WiFiClient *stream = http.getStreamPtr();
+            int resolved = 0;
+
+            char buf[64];
+            int bi = 0;
+            enum { LOOK_KEY, READ_KEY, SKIP_VAL, READ_VAL } st = LOOK_KEY;
+            char curKey[24] = "";
+
+            int  cur_mk = 0;
+            char cur_name[32] = "";
+            char cur_date[12] = "";
+
+            unsigned long timeout = millis() + 12000;
+            while (stream->connected() && millis() < timeout) {
+                while (stream->available()) {
+                    char c = stream->read();
+
+                    if (c == '{') {
+                        cur_mk = 0; cur_name[0] = '\0'; cur_date[0] = '\0';
+                        st = LOOK_KEY; bi = 0;
+                        continue;
+                    }
+                    if (c == '}') {
+                        if (cur_mk && cur_date[0] && strstr(cur_name, "Testing") == nullptr) {
+                            int my, mm2, md;
+                            if (sscanf(cur_date, "%d-%d-%d", &my, &mm2, &md) == 3) {
+                                struct tm mt = {0};
+                                mt.tm_year = my - 1900; mt.tm_mon = mm2 - 1; mt.tm_mday = md;
+                                time_t meetT = mktime(&mt);
+                                for (auto &rm : _cache->calendar) {
+                                    int ry, rmo, rd;
+                                    if (sscanf(rm.date, "%d-%d-%d", &ry, &rmo, &rd) < 3) continue;
+                                    struct tm rt = {0};
+                                    rt.tm_year = ry - 1900; rt.tm_mon = rmo - 1; rt.tm_mday = rd;
+                                    time_t raceT = mktime(&rt);
+                                    if (meetT >= raceT - 7 * 86400 && meetT <= raceT) {
+                                        rm.meetingKey = cur_mk;
+                                        resolved++;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        st = LOOK_KEY; bi = 0;
+                        continue;
+                    }
+
+                    switch (st) {
+                    case LOOK_KEY:
+                        if (c == '"') { bi = 0; st = READ_KEY; }
+                        break;
+                    case READ_KEY:
+                        if (c == '"') {
+                            buf[bi] = '\0';
+                            strlcpy(curKey, buf, sizeof(curKey));
+                            if (strcmp(curKey, "meeting_key") == 0 ||
+                                strcmp(curKey, "meeting_name") == 0 ||
+                                strcmp(curKey, "date_start") == 0) {
+                                st = READ_VAL; bi = 0;
+                            } else {
+                                st = SKIP_VAL;
+                            }
+                        } else if (bi < (int)sizeof(buf) - 1) buf[bi++] = c;
+                        break;
+                    case SKIP_VAL:
+                        if (c == ',') st = LOOK_KEY;
+                        else if (c == '}') st = LOOK_KEY;
+                        break;
+                    case READ_VAL:
+                        if (c == ':' || c == ' ' || c == '\t') break;
+                        if (c == '"') {
+                            bi = 0;
+                            unsigned long t2 = millis() + 2000;
+                            while (millis() < t2) {
+                                if (!stream->available()) { delay(1); continue; }
+                                char c2 = stream->read();
+                                if (c2 == '"') break;
+                                if (bi < (int)sizeof(buf) - 1) buf[bi++] = c2;
+                            }
+                            buf[bi] = '\0';
+                            if (strcmp(curKey, "meeting_name") == 0)
+                                strlcpy(cur_name, buf, sizeof(cur_name));
+                            else if (strcmp(curKey, "date_start") == 0) {
+                                strncpy(cur_date, buf, 10); cur_date[10] = '\0';
+                            }
+                            st = LOOK_KEY;
+                        } else {
+                            bi = 0; buf[bi++] = c;
+                            unsigned long t2 = millis() + 2000;
+                            while (millis() < t2) {
+                                if (!stream->available()) { delay(1); continue; }
+                                char c2 = stream->peek();
+                                if (c2 == ',' || c2 == '}' || c2 == ']' || c2 == ' ') break;
+                                stream->read();
+                                if (bi < (int)sizeof(buf) - 1) buf[bi++] = c2;
+                            }
+                            buf[bi] = '\0';
+                            if (strcmp(curKey, "meeting_key") == 0)
+                                cur_mk = atoi(buf);
+                            st = LOOK_KEY;
+                        }
+                        break;
+                    }
+                }
+                if (!stream->available()) delay(2);
+            }
+            http.end();
+            Serial.printf("[SYNC] Meeting keys resolved: %d / %d races\n", resolved, _cache->calendar.size());
+        } else {
+            http.end();
+            Serial.printf("[SYNC] OpenF1 meetings fetch failed: %d\n", code);
+        }
     }
 
     int totalSessions = 0;
@@ -688,9 +812,7 @@ bool APIClient::fetchNewsFeed()
     Serial.println("[RSS] Fetching motorsport.com news...");
     _cache->newsFeed.clear();
 
-    // Use getString() which is battle-tested. Memory is freed when body goes out of scope.
-    // Retry once on failure to handle transient network issues.
-    String body;
+    bool success = false;
     for (int attempt = 0; attempt < 2; attempt++)
     {
         if (attempt > 0) delay(1000);
@@ -698,57 +820,76 @@ bool APIClient::fetchNewsFeed()
         WiFiClientSecure wcs;
         wcs.setInsecure();
         HTTPClient http;
-        http.begin(wcs, "https://www.motorsport.com/rss/f1/news/");
+        http.begin(wcs, RSS_NEWS_URL);
         http.setTimeout(10000);
         http.addHeader("User-Agent", "Mozilla/5.0 (compatible; F1Widget/1.0)");
         int code = http.GET();
         if (code == HTTP_CODE_OK)
         {
-            body = http.getString();
+            WiFiClient *stream = http.getStreamPtr();
+            if (!stream) { http.end(); continue; }
+
+            int count = 0;
+            // 2500 bytes is enough for a single <item> block (usually ~1.3KB)
+            char itemBuf[2500];
+
+            while (stream->connected() && count < 20) {
+                // stream->find() returns true if the string is found
+                // Note: find() consumes the stream up to and including the target
+                if (!stream->find("<item>")) break;
+
+                int idx = 0;
+                unsigned long tStart = millis();
+                bool foundEnd = false;
+
+                // Read into buffer until we see </item> or fill buffer
+                while (stream->connected() && (millis() - tStart) < 5000 && idx < (int)sizeof(itemBuf) - 1) {
+                    if (stream->available()) {
+                        char c = stream->read();
+                        itemBuf[idx++] = c;
+                        
+                        // Check if the last 7 chars match "</item>"
+                        if (idx >= 7 && strncmp(&itemBuf[idx-7], "</item>", 7) == 0) {
+                            foundEnd = true;
+                            break;
+                        }
+                    } else {
+                        delay(1);
+                    }
+                }
+                itemBuf[idx] = '\0';
+
+                if (foundEnd) {
+                    NewsArticle a;
+                    memset(&a, 0, sizeof(NewsArticle));
+
+                    extractRSSField(itemBuf, "title", a.title, sizeof(a.title));
+                    extractRSSDescription(itemBuf, "description", a.description, sizeof(a.description));
+                    extractRSSDate(itemBuf, "pubDate", a.pubDate, sizeof(a.pubDate));
+                    extractRSSField(itemBuf, "link", a.url, sizeof(a.url));
+
+                    if (strlen(a.title) > 0)
+                    {
+                        _cache->newsFeed.push_back(a);
+                        count++;
+                    }
+                }
+            }
+            
             http.end();
-            break;
+            Serial.printf("[RSS] %d articles parsed\n", count);
+            if (count > 0) success = true;
+            break; // Break the retry loop if we succeeded or parsed the stream
         }
-        http.end();
-        Serial.printf("[RSS] Attempt %d: HTTP %d\n", attempt + 1, code);
-    }
-
-    if (body.length() < 100) {
-        Serial.printf("[RSS] Body too short: %d bytes\n", body.length());
-        return false;
-    }
-    Serial.printf("[RSS] Downloaded %d bytes\n", body.length());
-
-    const char *p = body.c_str();
-    int count = 0;
-    while (*p && count < 20)
-    {
-        p = strstr(p, "<item>");
-        if (!p) break;
-        p += 6;
-
-        const char *end = strstr(p, "</item>");
-        if (!end) break;
-
-        NewsArticle a;
-        memset(&a, 0, sizeof(NewsArticle));
-
-        extractRSSField(p, "title", a.title, sizeof(a.title));
-        extractRSSDescription(p, "description", a.description, sizeof(a.description));
-        extractRSSDate(p, "pubDate", a.pubDate, sizeof(a.pubDate));
-        extractRSSField(p, "link", a.url, sizeof(a.url));
-
-        if (strlen(a.title) > 0)
+        else
         {
-            _cache->newsFeed.push_back(a);
-            count++;
+            http.end();
+            Serial.printf("[RSS] Attempt %d: HTTP %d\n", attempt + 1, code);
         }
-
-        p = end + 7;
     }
 
-    Serial.printf("[RSS] %d articles parsed\n", count);
     _cache->newsFeed.shrink_to_fit();
-    return count > 0;
+    return success;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -825,7 +966,7 @@ static int _probeLapData(int sessionKey)
     WiFiClientSecure wcs;
     wcs.setInsecure();
     HTTPClient http;
-    http.begin(wcs, "https://api.openf1.org/v1/laps?session_key=" + String(sessionKey) + "&lap_number=1");
+    http.begin(wcs, String(OPENF1_API_BASE) + "/laps?session_key=" + String(sessionKey) + "&lap_number=1");
     http.setTimeout(8000);
     int code = http.GET();
     if (code != HTTP_CODE_OK) { http.end(); return -1; }
@@ -847,7 +988,7 @@ static bool _fetchFastestLapStream(int sessionKey, int driverNumber,
     WiFiClientSecure wcs;
     wcs.setInsecure();
     HTTPClient http;
-    String url = "https://api.openf1.org/v1/laps?session_key=" + String(sessionKey)
+    String url = String(OPENF1_API_BASE) + "/laps?session_key=" + String(sessionKey)
                + "&driver_number=" + String(driverNumber);
     http.begin(wcs, url);
     http.setTimeout(15000);
@@ -1023,7 +1164,7 @@ static bool _fetchSessionResult(int sessionKey, int driverNumber,
     WiFiClientSecure wcs;
     wcs.setInsecure();
     HTTPClient http;
-    String url = "https://api.openf1.org/v1/session_result?session_key=" + String(sessionKey)
+    String url = String(OPENF1_API_BASE) + "/session_result?session_key=" + String(sessionKey)
                + "&driver_number=" + String(driverNumber);
     http.begin(wcs, url);
     http.setTimeout(8000);
@@ -1061,7 +1202,7 @@ bool APIClient::fetchCircuitOutline(int sessionKey, int driverNumber,
     wcs.setInsecure();
     HTTPClient http;
 
-    String url = "https://api.openf1.org/v1/location?session_key=" + String(sessionKey)
+    String url = String(OPENF1_API_BASE) + "/location?session_key=" + String(sessionKey)
                + "&driver_number=" + String(driverNumber);
     if (dateAfter) { url += "&date>="; url += dateAfter; }
 
@@ -1202,7 +1343,7 @@ bool APIClient::_cacheOneRound(int round, const RaceMeeting *rm)
     {
         WiFiClientSecure wcs; wcs.setInsecure();
         HTTPClient http;
-        http.begin(wcs, "https://api.openf1.org/v1/sessions?meeting_key=" + String(rm->meetingKey));
+        http.begin(wcs, String(OPENF1_API_BASE) + "/sessions?meeting_key=" + String(rm->meetingKey));
         http.setTimeout(8000);
         if (http.GET() == HTTP_CODE_OK) {
             String body = http.getString(); http.end();

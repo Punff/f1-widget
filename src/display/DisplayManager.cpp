@@ -2,6 +2,7 @@
 #include "views/WifiSettingsView.h"
 #include "views/DataSettingsView.h"
 #include "../../include/LGFX_Config.h"
+#include "../config.h"
 #include "../time/TimeManager.h"
 #include "../time/TimeUtils.h"
 #include "../data/DataCache.h"
@@ -313,16 +314,37 @@ void DisplayManager::updateAutoSwitch()
         }
     }
 
-    // Auto-sync: if any weekend's race date has passed, sync leaderboard data
+    // Find the highest race round that has already passed
+    int highestPastRound = -1;
     for (auto &rm : cache->calendar)
     {
         if (rm.sessionCount == 0) continue;
-        if (strcmp(rm.date, todayStr) < 0 && rm.round > _lastAutoSyncRound)
+        if (strcmp(rm.date, todayStr) < 0)
         {
-            _lastAutoSyncRound = rm.round;
-            if (api) api->syncAll();
-            return;
+            if (rm.round > highestPastRound) {
+                highestPastRound = rm.round;
+            }
         }
+    }
+
+    // Auto-sync: only trigger if a NEW race weekend has passed while the device is running
+    if (highestPastRound > _lastAutoSyncRound)
+    {
+        bool isFirstCheck = (_lastAutoSyncRound == -1);
+        _lastAutoSyncRound = highestPastRound;
+        
+        // Don't sync on the very first check after boot (avoids a freeze catch-up loop).
+        // The periodic interval sync will handle data updates anyway.
+        if (!isFirstCheck && api) {
+            api->syncAll();
+        }
+    }
+
+    // Periodic interval auto-sync
+    static unsigned long _lastPeriodicSync = millis();
+    if (millis() - _lastPeriodicSync >= API_UPDATE_INTERVAL_MS) {
+        _lastPeriodicSync = millis();
+        if (api) api->syncAll();
     }
 }
 

@@ -137,10 +137,17 @@ bool wifi_connect_best()
 void wifi_start_hotspot()
 {
     Serial.println("[WiFi] Starting hotspot portal...");
+    
+    // Disconnect so WiFiManager is forced to open the portal 
+    // instead of instantly succeeding if already connected.
+    WiFi.disconnect();
+    
     WiFiManager wm;
     wm.setCustomHeadElement("<style>body{background-color:#e10600;color:white;} .btn{background-color:#1f1f1f;}</style>");
     wm.setConnectTimeout(20);
     wm.setConfigPortalTimeout(180);
-    bool connected = wm.autoConnect(WIFI_AP_NAME);
+    
+    // startConfigPortal forces the AP to open
+    bool connected = wm.startConfigPortal(WIFI_AP_NAME);
     if (connected) wifi_save_current();
 }
